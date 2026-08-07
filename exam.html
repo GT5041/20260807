@@ -1,0 +1,87 @@
+<title>Question — CCAR-F Practice Exam</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="css/style.css" />
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="brand">CCAR-F Practice Exam<small>Unofficial daily mock exam</small></div>
+    <nav class="top-nav">
+      <a href="index.html">Home</a>
+      <a href="review.html">Review</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="content">
+    <p class="empty-state">Loading question…</p>
+  </div>
+</main>
+
+<footer class="site-footer">CCAR-F Practice Exam · Regenerated daily · Unofficial</footer>
+
+<script type="module">
+  import { loadTodaysExam, getState, saveAnswer, qs, DOMAIN_META } from "./js/app.js";
+
+  const content = document.getElementById("content");
+  const n = Math.max(1, parseInt(qs("n") || "1", 10));
+
+  loadTodaysExam().then((exam) => {
+    const total = exam.questions.length;
+    const idx = Math.min(n, total) - 1;
+    const q = exam.questions[idx];
+    const state = getState(exam.date);
+    const selected = state.answers[idx];
+    const domain = DOMAIN_META[q.domain];
+
+    const pct = Math.round(((idx + 1) / total) * 100);
+
+    content.innerHTML = `
+      <div class="progress-row">
+        <span>Question ${idx + 1} of ${total}</span>
+        <span>${Object.keys(state.answers).length} answered</span>
+      </div>
+      <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+      <div class="card">
+        <span class="domain-tag">${domain.en}</span>
+        <div class="stem">${q.stem}</div>
+        <ul class="choices" id="choices">
+          ${q.choices
+            .map(
+              (c) => `
+            <li class="choice${selected === c.key ? " selected" : ""}" data-key="${c.key}">
+              <span class="key">${c.key}.</span>
+              <span>${c.text}</span>
+            </li>`
+            )
+            .join("")}
+        </ul>
+        <div class="actions-row">
+          <div>
+            ${idx > 0 ? `<a class="btn secondary" href="exam.html?n=${idx}">&larr; Previous</a>` : ""}
+          </div>
+          <div>
+            <a class="btn secondary" href="review.html">Review all</a>
+            ${
+              idx + 1 < total
+                ? `<a class="btn" href="exam.html?n=${idx + 2}">Next &rarr;</a>`
+                : `<a class="btn" href="review.html">Finish &amp; Review</a>`
+            }
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.querySelectorAll("#choices .choice").forEach((el) => {
+      el.addEventListener("click", () => {
+        const key = el.getAttribute("data-key");
+        saveAnswer(exam.date, idx, key);
+        document
+          .querySelectorAll("#choices .choice")
+          .forEach((li) => li.classList.remove("selected"));
+        el.classList.add("selected");
+      });
+    });
+  });
+</script>

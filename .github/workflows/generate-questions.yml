@@ -1,0 +1,50 @@
+name: Generate daily CCAR-F questions
+
+on:
+  schedule:
+    # 15:00 UTC = 00:00 JST — fires once at the start of each JST calendar day.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Regenerate even if today's file already exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-questions
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Generate today's question set
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GENERATION_MODEL: ${{ vars.GENERATION_MODEL }}
+          FORCE: ${{ inputs.force }}
+        run: node scripts/generate-questions.mjs
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "ccar-f-question-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/questions data/manifest.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Add CCAR-F practice questions for $(date -u -d '+9 hours' +%Y-%m-%d) (JST)"
+            git push
+          fi

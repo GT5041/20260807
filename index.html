@@ -1,0 +1,60 @@
+<title>CCAR-F Practice Exam</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="A daily-refreshed, AI-generated practice exam for the Claude Certified Architect – Foundations (CCAR-F) certification." />
+<link rel="stylesheet" href="css/style.css" />
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="brand">CCAR-F Practice Exam<small>Unofficial daily mock exam</small></div>
+    <nav class="top-nav">
+      <a href="index.html">Home</a>
+      <a href="review.html">Review</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <h1>Claude Certified Architect – Foundations</h1>
+    <p class="lead">
+      30 scenario-based practice questions, six from each exam domain, regenerated every day by
+      Claude via a scheduled GitHub Actions workflow. Difficulty is calibrated to the real CCAR-F
+      exam: realistic production scenarios, no obvious anti-patterns, and answer choices that all
+      sound plausible until you apply the underlying architecture principles.
+    </p>
+    <p id="date-label" class="exam-date">Loading today's exam…</p>
+    <p>
+      <a class="btn" href="exam.html?n=1">Start Today's Exam</a>
+      <a class="btn secondary" href="review.html">Go to Review</a>
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">How this site works</h2>
+    <ul>
+      <li><strong>Question page</strong> — one question per page, with the four answer choices. Your answer is saved as you go; there's no penalty for skipping ahead and coming back.</li>
+      <li><strong>Review page</strong> — lists all 30 questions with answered/unanswered and correct/incorrect status, plus a link into each explanation.</li>
+      <li><strong>Explanation page</strong> — the correct answer, a detailed rationale in English and Japanese, and which CCAR-F exam guide domain the item maps to.</li>
+    </ul>
+    <p style="color:var(--color-text-muted); font-size:0.85rem;">
+      This is an independent study aid, not affiliated with or endorsed by Anthropic. Content is
+      generated against the published CCAR-F exam guide blueprint and may contain errors — always
+      verify against the official exam guide.
+    </p>
+  </div>
+</main>
+
+<footer class="site-footer">CCAR-F Practice Exam · Regenerated daily · Unofficial</footer>
+
+<script type="module">
+  import { loadTodaysExam, formatDateLabel } from "./js/app.js";
+  const label = document.getElementById("date-label");
+  loadTodaysExam()
+    .then((exam) => {
+      label.textContent = `Today's exam set: ${formatDateLabel(exam.date)} · ${exam.questions.length} questions`;
+    })
+    .catch(() => {
+      label.textContent = "Could not load today's exam data yet — check back soon.";
+    });
+</script>

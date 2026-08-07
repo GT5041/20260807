@@ -1,0 +1,92 @@
+<title>Explanation — CCAR-F Practice Exam</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="css/style.css" />
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="brand">CCAR-F Practice Exam<small>Unofficial daily mock exam</small></div>
+    <nav class="top-nav">
+      <a href="index.html">Home</a>
+      <a href="review.html">Review</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="content">
+    <p class="empty-state">Loading explanation…</p>
+  </div>
+</main>
+
+<footer class="site-footer">CCAR-F Practice Exam · Regenerated daily · Unofficial</footer>
+
+<script type="module">
+  import { loadTodaysExam, getState, qs, DOMAIN_META } from "./js/app.js";
+
+  const content = document.getElementById("content");
+  const n = Math.max(1, parseInt(qs("n") || "1", 10));
+
+  loadTodaysExam().then((exam) => {
+    const total = exam.questions.length;
+    const idx = Math.min(n, total) - 1;
+    const q = exam.questions[idx];
+    const state = getState(exam.date);
+    const given = state.answers[idx];
+    const domain = DOMAIN_META[q.domain];
+
+    const choiceRows = q.choices
+      .map((c) => {
+        const classes = ["choice"];
+        if (c.key === q.correctAnswer) classes.push("correct");
+        else if (c.key === given) classes.push("incorrect");
+        const tag =
+          c.key === q.correctAnswer
+            ? " <strong>(Correct answer)</strong>"
+            : c.key === given
+            ? " <em>(Your answer)</em>"
+            : "";
+        return `
+          <li class="${classes.join(" ")}">
+            <span class="key">${c.key}.</span>
+            <span>${c.text}${tag}</span>
+          </li>`;
+      })
+      .join("");
+
+    content.innerHTML = `
+      <div class="progress-row">
+        <span>Explanation — Question ${idx + 1} of ${total}</span>
+      </div>
+      <div class="card">
+        <span class="domain-tag">${domain.en}</span>
+        <div class="stem">${q.stem}</div>
+        <ul class="choices">${choiceRows}</ul>
+      </div>
+      <div class="card">
+        <div class="domain-box">
+          <strong>${domain.en} / ${domain.ja}</strong><br />
+          <span class="lang-tag">EN</span>${domain.descEn}<br /><br />
+          <span class="lang-tag">JA</span>${domain.descJa}
+        </div>
+        <div class="explanation-block">
+          <div class="explanation-en">
+            <h3>Explanation (English)</h3>
+            <p>${q.explanationEn}</p>
+          </div>
+          <div class="explanation-ja">
+            <h3>解説（日本語）</h3>
+            <p>${q.explanationJa}</p>
+          </div>
+        </div>
+      </div>
+      <div class="actions-row">
+        <div>${idx > 0 ? `<a class="btn secondary" href="explain.html?n=${idx}">&larr; Previous</a>` : ""}</div>
+        <div>
+          <a class="btn secondary" href="review.html">Back to review</a>
+          ${idx + 1 < total ? `<a class="btn" href="explain.html?n=${idx + 2}">Next &rarr;</a>` : ""}
+        </div>
+      </div>
+    `;
+  });
+</script>
