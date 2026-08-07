@@ -32,8 +32,6 @@ jobs:
 
       - name: Generate today's question set
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GENERATION_MODEL: ${{ vars.GENERATION_MODEL }}
           FORCE: ${{ inputs.force }}
         run: node scripts/generate-questions.mjs
 

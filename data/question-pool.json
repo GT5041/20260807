@@ -1,0 +1,1684 @@
+{
+  "questions": [
+    {
+      "id": "pool-001",
+      "domain": 1,
+      "taskStatement": "1.1",
+      "context": "Logistics manifest reconciliation agent",
+      "stem": "A staff engineer at a logistics firm is prototyping an internal agent directly against the Claude API (not the Agent SDK) to reconcile shipment manifests against carrier invoices. The current implementation appends each response and any tool results to the conversation, then inspects the assistant's final text output for the substring 'RECONCILIATION COMPLETE' to decide whether to stop looping or issue another turn. During a live pilot, the agent occasionally exits early after producing partial summaries that happen to include that phrase inside a caveat sentence (e.g., 'Reconciliation complete for 40 of 52 manifests'), and it occasionally loops past 20 turns because the model rephrases the sentence. Which change would most reliably fix the loop's termination logic?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Tighten the substring match to require the exact phrase 'RECONCILIATION COMPLETE' to appear as the first line of the response."
+        },
+        {
+          "key": "B",
+          "text": "Terminate the loop when the API response's stop_reason field is \"end_turn\", and continue issuing further turns whenever it is \"tool_use\"."
+        },
+        {
+          "key": "C",
+          "text": "Add a hard cap of 10 turns and treat reaching the cap as successful completion, to bound worst-case latency."
+        },
+        {
+          "key": "D",
+          "text": "Have the model emit a special final sentence such as 'STOP NOW' and detect it with a stricter parser, in addition to the existing check."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "stop_reason is the structured, authoritative termination signal the API already provides: \"tool_use\" means more work is expected, \"end_turn\" means the model considers itself done. Parsing the assistant's natural-language text for a marker phrase is fragile by construction, since ordinary caveat sentences can accidentally contain the marker and paraphrasing can cause it to be missed entirely, which is exactly what's happening here. Tightening the substring match or adding a stricter secondary parser both keep relying on this unreliable signal instead of replacing it. An iteration cap addresses worst-case latency, but treating a cap as \"success\" would silently truncate legitimate multi-step reconciliations rather than fixing why the loop can't tell when it's actually done.",
+      "explanationJa": "stop_reasonは、APIがすでに提供している構造化された正式な終了シグナルであり、\"tool_use\"は作業継続を、\"end_turn\"はモデル自身が完了したと判断したことを意味します。アシスタントの自然言語テキストから合言葉を探す方式は本質的に脆弱で、通常の注記文にたまたまその語句が含まれたり、言い換えによって検出漏れが起きたりするのは、まさに今回起きている現象です。部分文字列の一致条件を厳しくしたり、より厳格な二次パーサーを追加したりしても、この不安定なシグナルへの依存自体は変わりません。反復回数の上限は最悪ケースのレイテンシ対策にはなりますが、上限到達を「成功」として扱うと、正当な複数ステップの照合処理まで黙って打ち切ってしまい、ループが完了を正しく判定できない根本原因の解決にはなりません。"
+    },
+    {
+      "id": "pool-002",
+      "domain": 1,
+      "taskStatement": "1.2",
+      "context": "Market-intelligence research pipeline",
+      "stem": "A market-intelligence team's multi-agent research system uses a coordinator that delegates to a web-search subagent and a financial-filings subagent. To reduce latency, an engineer configures the financial-filings subagent to call the web-search subagent directly via a shared Task invocation whenever it needs to verify a ticker symbol, bypassing the coordinator entirely. After this change, the coordinator's logs show gaps: some financial-filings failures are silently retried by the web-search subagent without ever being recorded, and the coordinator occasionally invokes web-search again on a topic already covered because it has no visibility into the cross-subagent call. What is the most effective way to fix this design?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Give the financial-filings subagent its own retry-with-backoff logic so the undocumented calls to web-search at least fail gracefully."
+        },
+        {
+          "key": "B",
+          "text": "Merge the two subagents into a single subagent with access to both sets of tools, so cross-calls are no longer necessary."
+        },
+        {
+          "key": "C",
+          "text": "Route all inter-subagent communication back through the coordinator, having the financial-filings subagent return a request for verification data as part of its result so the coordinator can decide whether to invoke web-search."
+        },
+        {
+          "key": "D",
+          "text": "Have the financial-filings subagent log its direct calls to a shared file that the coordinator reads at the end of the run to reconstruct what happened."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Hub-and-spoke architecture requires the coordinator to manage all inter-subagent communication for observability, consistent error handling, and controlled information routing; direct subagent-to-subagent calls bypass exactly that, which is why failures and duplicate work are now invisible to the coordinator. Adding retry logic inside the subagent papers over the symptom without restoring visibility. Merging the two subagents into one sacrifices the separation-of-concerns and tool-scoping benefits of keeping specialized subagents narrow, and doesn't generalize once a third specialized subagent is added. Having the subagent log to a shared file for later reconstruction is a workaround that still doesn't let the coordinator make real-time routing or retry decisions, only a post-hoc audit.",
+      "explanationJa": "ハブアンドスポーク型アーキテクチャでは、可観測性・一貫したエラー処理・情報ルーティングの制御のため、サブエージェント間のあらゆる通信をコーディネーターが管理する必要があります。サブエージェント同士が直接呼び出し合うことはまさにこれを迂回しており、だからこそ失敗や重複作業がコーディネーターから見えなくなっています。サブエージェント側にリトライロジックを持たせても症状を覆い隠すだけで、可視性は回復しません。2つのサブエージェントを統合して1つにする案は、専門特化したサブエージェントを絞り込んでおく関心の分離やツールスコープの利点を犠牲にし、3つ目の専門サブエージェントが追加された際に一般化できません。共有ファイルへのログ記録は事後的な監査にはなりますが、コーディネーターがリアルタイムにルーティングやリトライを判断することはできません。"
+    },
+    {
+      "id": "pool-003",
+      "domain": 1,
+      "taskStatement": "1.3",
+      "context": "Due-diligence research pipeline",
+      "stem": "You are building a coordinator agent for a due-diligence research pipeline using the Claude Agent SDK. The coordinator needs to invoke three subagents — a corporate-registry lookup subagent, a litigation-history subagent, and a news-sentiment subagent — whose findings do not depend on one another. Your current implementation has the coordinator emit one Task tool call, wait for the subagent's turn to complete, inspect stop_reason, and then emit the next Task call in a subsequent turn, repeating three times sequentially. A colleague reports the pipeline takes almost three times longer than necessary. What change addresses this while preserving the coordinator's role as the single point of routing?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Move litigation-history and news-sentiment lookups into PostToolUse hooks on the corporate-registry subagent so they fire automatically."
+        },
+        {
+          "key": "B",
+          "text": "Give each subagent access to the other two subagents' Task definitions so they can invoke each other without coordinator involvement."
+        },
+        {
+          "key": "D",
+          "text": "Increase max_tokens on the coordinator's requests so it can process all three subagents' outputs within one context window."
+        },
+        {
+          "key": "C",
+          "text": "Have the coordinator emit all three Task tool calls within a single assistant turn, so the subagents execute in parallel, and then aggregate the three tool results once they return."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Parallel subagent execution is achieved by emitting multiple Task tool calls within a single coordinator response rather than spreading them across separate turns; the three lookups are independent, so there is no need to wait for one before starting the next. Repurposing PostToolUse hooks for orchestration misuses a mechanism intended for tool-result transformation and interception, not for triggering unrelated subagent work. Letting subagents invoke each other's Task definitions reintroduces the hub-and-spoke violation of bypassing the coordinator, which harms observability and error handling. Increasing max_tokens has no effect on latency here, since the bottleneck is sequential round trips between turns, not a shortage of output space within any single turn.",
+      "explanationJa": "サブエージェントを並列実行するには、複数のTaskツール呼び出しを別々のターンに分けるのではなく、コーディネーターの単一の応答内でまとめて発行します。3つの調査は互いに独立しているため、1つの完了を待ってから次を始める必要はありません。PostToolUseフックをオーケストレーション目的に転用するのは、本来ツール結果の変換・介入のための仕組みを、無関係なサブエージェント処理の起動に誤用することになります。サブエージェント同士に互いのTask定義へのアクセスを与えると、コーディネーターを迂回するハブアンドスポーク違反が再発し、可観測性とエラー処理を損ないます。max_tokensを増やしても、ボトルネックは単一ターン内の出力容量不足ではなくターン間の逐次的な往復であるため、レイテンシには影響しません。"
+    },
+    {
+      "id": "pool-004",
+      "domain": 1,
+      "taskStatement": "1.4",
+      "context": "Internal finance-operations agent",
+      "stem": "An internal finance-operations agent processes expense reimbursements. Company policy requires that a request never be disbursed before a manager's approval status has been confirmed through the approvals system. The current system prompt instructs the agent: 'Always call check_approval_status before calling disburse_funds.' An audit of three months of transaction logs finds 7 out of 4,200 disbursements were issued without a prior check_approval_status call in the same session, all traced to sessions where the employee mentioned their manager's name and the agent inferred approval had already happened. What is the most effective way to eliminate this failure mode going forward?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Add a programmatic prerequisite gate that blocks the disburse_funds tool call unless check_approval_status has already returned an approved status within the same session."
+        },
+        {
+          "key": "B",
+          "text": "Rewrite the system prompt instruction to more strongly emphasize the requirement, e.g., 'You must ALWAYS verify approval status before any disbursement, without exception.'"
+        },
+        {
+          "key": "C",
+          "text": "Add several few-shot examples showing the agent calling check_approval_status even when the employee claims their manager already approved the request verbally."
+        },
+        {
+          "key": "D",
+          "text": "Log every disbursement without a preceding check_approval_status call to a dashboard for the finance team to review weekly."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Financial operations require deterministic compliance guarantees, which is exactly what a programmatic prerequisite gate provides by blocking the downstream tool call at the system level rather than hoping the model follows an instruction. Both stronger prompt wording and additional few-shot examples remain probabilistic compliance mechanisms with a non-zero failure rate — which is precisely why 7 violations occurred despite an explicit instruction already existing before the audit. A weekly dashboard review is a detective control that surfaces violations after the money has already moved, rather than a preventive one that stops them from happening.",
+      "explanationJa": "金融関連の操作には決定的なコンプライアンス保証が必要であり、まさにプログラム的な事前条件ゲートが、モデルが指示に従うことを期待するのではなく、システムレベルで下流のツール呼び出しをブロックすることで実現するものです。プロンプトの文言を強めることや、few-shot例を追加することは、いずれも失敗率がゼロにならない確率的なコンプライアンス手段のままであり、監査前にすでに明示的な指示があったにもかかわらず7件の違反が発生した理由もまさにそこにあります。週次ダッシュボードでのレビューは、資金がすでに動いた後に違反を発見する検知的統制であり、発生自体を防ぐ予防的統制ではありません。"
+    },
+    {
+      "id": "pool-005",
+      "domain": 1,
+      "taskStatement": "1.5",
+      "context": "Customer support order-timestamp handling",
+      "stem": "A support-automation agent pulls order timestamps from three backend systems through separate MCP tools: the legacy order system returns Unix epoch integers, the fulfillment-partner API returns ISO 8601 strings, and the loyalty-program tool returns a custom 'MM/DD/YYYY HH:mm' string. The agent frequently miscalculates whether a return window has expired because it reasons inconsistently about these differing formats when they appear together in context. Where should the fix for this specific problem be implemented?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "A system prompt addition instructing the model to convert all timestamps to ISO 8601 in its head before comparing them."
+        },
+        {
+          "key": "B",
+          "text": "A PostToolUse hook that converts each tool's timestamp fields into a single canonical format before the results are added to the model's context."
+        },
+        {
+          "key": "C",
+          "text": "A few-shot example demonstrating correct return-window calculations across the three timestamp formats."
+        },
+        {
+          "key": "D",
+          "text": "A tool_choice: \"any\" configuration that forces the agent to call a dedicated date-parsing tool before evaluating return eligibility."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "PostToolUse hooks are the documented mechanism for deterministically normalizing heterogeneous tool output before the model reasons over it, and timestamp-format reconciliation is exactly this kind of data-transformation problem, best solved outside the model's probabilistic reasoning. Instructing the model to mentally convert formats, or showing it a few-shot example of doing so, both still rely on the model performing consistent arithmetic and reformatting across every turn, the same class of unreliable compliance normalization hooks exist to eliminate. Forcing a separate date-parsing tool call adds an extra round trip and still leaves the actual interpretation and comparison to the model rather than fixing the data at its source.",
+      "explanationJa": "PostToolUseフックは、モデルが推論する前にツールの異種出力を決定的に正規化するための標準的な仕組みであり、タイムスタンプ形式の統一はまさにこの種のデータ変換問題であって、モデルの確率的な推論の外側で解決するのが最善です。モデルに頭の中で形式を変換するよう指示すること、あるいはその実演をfew-shot例として示すことは、いずれも毎ターン一貫した計算と再フォーマットをモデルが正しく行うことに依存しており、フックがまさに排除しようとしている不安定なコンプライアンスと同種のものです。専用の日付解析ツール呼び出しを強制すると往復が1回増える上、実際の解釈と比較は結局モデルに委ねられ、データそのものを発生源で修正することにはなりません。"
+    },
+    {
+      "id": "pool-006",
+      "domain": 1,
+      "taskStatement": "1.7",
+      "context": "Security vulnerability investigation",
+      "stem": "A security engineer used Claude Code to trace a suspected injection vulnerability across a 40-file authentication module two days ago, ending the session with a partial call-graph of affected functions. Since then, two other engineers have merged unrelated refactors into the same module, renaming several of the functions the prior session had already traced. The security engineer wants to continue the investigation today. Which approach is most likely to produce a reliable continuation?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Run --resume with the named prior session so the full conversation history, including all previously read file contents, is restored automatically."
+        },
+        {
+          "key": "D",
+          "text": "Use fork_session to branch from the prior session's endpoint, so the original investigation thread remains untouched."
+        },
+        {
+          "key": "C",
+          "text": "Start a new session and provide a structured summary of the prior findings (functions traced, call-graph edges, open questions), explicitly noting that the module has since been refactored and needs re-verification."
+        },
+        {
+          "key": "B",
+          "text": "Resume the prior session and immediately ask Claude to re-read the entire authentication module from scratch before continuing."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Because the underlying files changed after the session ended, the previously cached tool results — file contents and the call graph built from them — are now stale, and starting fresh with an injected structured summary is more reliable than resuming with stale tool results that no longer reflect the renamed functions. Resuming the named session restores exactly that stale content, including now-incorrect assumptions layered on top of it. fork_session is designed for exploring divergent approaches from a shared baseline that is still valid, not for recovering from a baseline whose underlying facts have since changed. Resuming and asking for a full re-read partially compensates, but the session's accumulated context still carries forward conclusions drawn before the re-read, which can bias interpretation of the new information.",
+      "explanationJa": "セッション終了後に対象ファイルが変更されているため、以前キャッシュされたツール結果（ファイル内容やそこから構築された呼び出しグラフ）はすでに古くなっており、構造化された要約を新しいセッションに注入して始める方が、名前変更後の関数をもはや反映していない古いツール結果を再開するより信頼できます。名前付きセッションを再開すると、まさにその古い内容と、その上に積み重なった誤った前提までもが復元されてしまいます。fork_sessionは、依然として有効な共有ベースラインから分岐したアプローチを検討するためのものであり、根拠となる事実自体が変化したベースラインからの復旧には向きません。セッションを再開して全体の再読み込みを依頼する方法は部分的な補完にはなりますが、セッションに蓄積された文脈には再読み込み前に導いた結論が引き続き残っており、新情報の解釈にバイアスを与えかねません。"
+    },
+    {
+      "id": "pool-007",
+      "domain": 2,
+      "taskStatement": "2.1",
+      "context": "Knowledge-management support agent",
+      "stem": "A knowledge-management agent has two MCP tools available: search_docs, described as 'Searches documentation,' and search_kb, described as 'Searches the knowledge base.' Support engineers report that when they ask the agent to 'find the article about SSO troubleshooting,' it inconsistently calls one tool or the other, and about a third of the time it calls both, doubling latency. The underlying data sources are genuinely different: search_docs indexes versioned product manuals, while search_kb indexes support-ticket-derived troubleshooting articles. What is the most effective first step to fix the tool-selection inconsistency?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Rename search_kb to search_kb_v2, so the model treats it as a more specific, preferred option."
+        },
+        {
+          "key": "B",
+          "text": "Remove search_docs from the agent's available tools, and route all documentation queries through search_kb instead."
+        },
+        {
+          "key": "C",
+          "text": "Add a routing instruction to the system prompt stating 'always prefer search_kb for troubleshooting-related queries.'"
+        },
+        {
+          "key": "D",
+          "text": "Rewrite each tool's description to state its specific content scope, example queries it's suited for, and boundary cases distinguishing it from the other tool."
+        }
+      ],
+      "correctAnswer": "D",
+      "explanationEn": "Minimal, near-identical descriptions are the root cause of unreliable selection among similar tools, so expanding each description with content scope, example queries, and explicit boundaries directly addresses why the model can't currently tell the two tools apart. Renaming the tool does nothing to clarify functional scope, since the model still has no more information about what content each tool actually covers. Removing search_docs discards a genuinely distinct, still-needed data source (versioned product manuals) rather than fixing selection between two valid tools. A keyword-sensitive system-prompt rule is a brittle patch that only helps for queries containing the word \"troubleshooting\" and can create unintended associations elsewhere, rather than fixing the underlying description quality that the model actually relies on for every query.",
+      "explanationJa": "最小限でほぼ同一の説明文は、類似ツール間の選択が不安定になる根本原因であり、各説明文に対象範囲・想定クエリ例・他ツールとの明確な境界を追記することが、モデルが両者を区別できない理由に直接対処します。ツール名を変更しても、各ツールが実際にどの内容をカバーしているかについてモデルが得る情報は増えず、機能範囲の明確化にはなりません。search_docsを削除すると、バージョン管理された製品マニュアルという本当に別個で必要なデータソースを失うことになり、2つの有効なツール間の選択問題の解決にはなりません。キーワードに敏感なシステムプロンプトのルールは、「troubleshooting」という語を含むクエリにしか効かず、他の場面で意図しない関連付けを生みかねない脆いパッチであり、あらゆるクエリでモデルが実際に頼る説明文の質そのものを改善するものではありません。"
+    },
+    {
+      "id": "pool-008",
+      "domain": 2,
+      "taskStatement": "2.1",
+      "context": "Contract-review agent",
+      "stem": "A contract-review agent has a single MCP tool, analyze_document, whose description reads 'Analyzes a document and returns findings.' In practice, the agent uses this one tool for three unrelated jobs: pulling specific data points (e.g., termination clauses), producing a plain-language summary, and checking a claim against the source text. Reviewers report the tool's output format varies unpredictably from call to call, because the model has to infer, from a vague prompt each time, which of the three jobs it's supposed to be doing. What is the most effective redesign?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Split analyze_document into three purpose-specific tools — extract_clauses, summarize_document, and verify_claim_against_source — each with its own defined input/output contract."
+        },
+        {
+          "key": "B",
+          "text": "Keep the single tool, but add a required 'mode' parameter the model must set to one of three enum values before the tool executes."
+        },
+        {
+          "key": "C",
+          "text": "Add few-shot examples to the system prompt showing three different ways to prompt analyze_document for the three jobs."
+        },
+        {
+          "key": "D",
+          "text": "Increase the analyze_document description's length substantially while keeping it as one tool, detailing all three use cases in prose."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Splitting an overloaded generic tool into purpose-specific tools with their own defined input/output contracts directly resolves the ambiguity, since each tool's schema alone communicates its job rather than requiring the model to infer intent from a vague prompt each time. Adding a required 'mode' enum is a plausible partial fix, but it still bundles three unrelated output contracts behind one tool and just relocates the disambiguation burden onto choosing the right mode value. Few-shot examples add token overhead on every call without fixing the structural ambiguity in the tool itself. Lengthening the description while keeping one tool doesn't resolve inconsistent output formats, since one tool still returns unstructured, job-dependent output regardless of how thoroughly its prose is written.",
+      "explanationJa": "肥大化した汎用ツールを、それぞれ独自の入出力契約を持つ目的特化型ツールに分割することは曖昧さを直接解消します。各ツールのスキーマ自体がその役割を伝えるため、モデルが毎回曖昧なプロンプトから意図を推測する必要がなくなるからです。必須の「mode」列挙値を追加する案はもっともらしい部分的な修正ですが、依然として3つの無関係な出力契約が1つのツールに同居しており、曖昧さの解消責任を適切なmode値の選択へと移しているに過ぎません。few-shot例の追加は呼び出しごとのトークン負担を増やすだけで、ツール自体の構造的な曖昧さは解消しません。ツールを1つのまま説明文を長くしても、どれだけ丁寧に書かれていても1つのツールが役割依存の非構造化出力を返す状況は変わらず、出力形式の不整合は解消されません。"
+    },
+    {
+      "id": "pool-009",
+      "domain": 2,
+      "taskStatement": "2.2",
+      "context": "Customer returns / inventory agent",
+      "stem": "An MCP tool named process_return calls a backend inventory service. When the service is temporarily unreachable, when the return window has legitimately expired per policy, and when the input SKU doesn't exist, the tool currently returns the same response in all three cases: {isError: true, content: 'Operation failed'}. The agent's behavior is inconsistent: sometimes it retries a policy-expired return several times, sometimes it gives up immediately on a transient outage without retrying, and it can't explain to the customer why a request failed. What change to the tool's error responses would most directly fix this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Wrap every call to process_return in client-side retry logic with exponential backoff, regardless of error type."
+        },
+        {
+          "key": "B",
+          "text": "Return structured error metadata distinguishing errorCategory (transient, validation, or business), an isRetryable boolean, and a human-readable, customer-appropriate description for each failure case."
+        },
+        {
+          "key": "C",
+          "text": "Add a system prompt instruction telling the agent not to retry more than once on any process_return failure."
+        },
+        {
+          "key": "D",
+          "text": "Change the tool description to list the three possible failure reasons in prose, while keeping the response format unchanged."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Uniform 'Operation failed' responses strip the agent of the information it needs to decide whether to retry, explain a business rule to the customer, or escalate, which is exactly why its behavior is inconsistent across the three failure types; returning errorCategory and an isRetryable flag lets the agent branch correctly per case. Blanket client-side retries would retry even non-retryable business and validation errors, wasting attempts on a request that can never succeed no matter how many times it's resent. A blunt 'retry at most once' rule doesn't distinguish legitimate transient-outage retries from the expired-window case, which should never be retried at all. Changing only the tool's description leaves the runtime response format — the actual signal the agent reasons over at call time — completely unchanged.",
+      "explanationJa": "画一的な「Operation failed」という応答は、エージェントがリトライすべきか、顧客にビジネスルールを説明すべきか、エスカレーションすべきかを判断するために必要な情報を奪っており、これが3種類の失敗タイプで挙動が一貫しない理由そのものです。errorCategoryとisRetryableフラグを返すことで、エージェントはケースごとに正しく分岐できるようになります。クライアント側で一律にリトライする方式は、何度再送しても絶対に成功しないリトライ不可能なビジネスエラーやバリデーションエラーまでリトライしてしまい、試行を無駄にします。「最大1回までリトライ」という乱暴なルールは、正当な一時的障害へのリトライと、そもそも一切リトライすべきでない期限切れケースを区別できません。ツールの説明文だけを変更しても、エージェントが呼び出し時に実際に推論の根拠とするランタイムの応答形式自体は何も変わりません。"
+    },
+    {
+      "id": "pool-010",
+      "domain": 2,
+      "taskStatement": "2.3",
+      "context": "Multi-agent research synthesis",
+      "stem": "A synthesis subagent in a research pipeline was originally scoped to two tools: combine_findings and format_citations. To handle occasional fact-checking needs, an engineer grants it the coordinator's entire toolset — 16 tools spanning web search, document retrieval, database queries, and email drafting — reasoning that more capability can only help. After this change, the synthesis subagent begins occasionally attempting unrelated actions, such as issuing raw web searches with malformed queries, and overall output quality on its core synthesis task declines. What most directly explains the regression, and what's the appropriate fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "The subagent's system prompt needs stronger instructions telling it not to use tools outside its intended role."
+        },
+        {
+          "key": "B",
+          "text": "The subagent should be given tool_choice: \"any\", so it is forced to call a tool on every turn instead of drifting into unstructured behavior."
+        },
+        {
+          "key": "C",
+          "text": "Access to a large, poorly scoped toolset degrades tool-selection reliability; the fix is to restrict the subagent back to a small, role-relevant set, adding only a narrowly scoped verify_fact tool for its actual fact-checking need."
+        },
+        {
+          "key": "D",
+          "text": "The regression is unrelated to tool count; the fix is to upgrade the subagent's model to a more capable one that can handle a larger toolset."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Granting an agent tools well outside its specialization — here, 16 tools instead of the original 2 — increases decision complexity and is documented to cause exactly this kind of misuse; the fix is scoped tool access plus a narrow, purpose-built cross-role tool for the specific high-frequency need (fact verification), rather than blanket access. Stronger system-prompt instructions are a probabilistic patch attempting to compensate for what is fundamentally an architectural scoping problem, and would need to be relied on for every one of the 16 tools indefinitely. Forcing tool_choice: \"any\" changes whether a tool is called on a given turn, not which tool is selected, so it doesn't address misselection among an oversized toolset. Treating this as a model-capability problem misdiagnoses the cause; a stronger model given the same 16 tools still faces the same increased selection complexity.",
+      "explanationJa": "本来の専門範囲を大きく超えるツール（ここでは元の2つから16個へ）をエージェントに与えると意思決定の複雑さが増し、まさにこの種の誤用を引き起こすことが知られています。修正策は、特定の高頻度ニーズ（事実確認）のために狭くスコープされた専用ツールを1つ追加しつつ、サブエージェントを役割に関連する小さなツールセットに戻すことであり、包括的なアクセス権付与ではありません。システムプロンプトの指示を強化する方法は、本質的にはアーキテクチャ上のスコープ設計の問題を確率的なパッチで補おうとするものであり、16個すべてのツールについて永続的にこの指示への依存に頼ることになります。tool_choice: \"any\"を強制しても、あるターンでツールが呼ばれるかどうかが変わるだけで、どのツールが選ばれるかは変わらないため、過大なツールセットの中での誤選択は解決しません。これをモデルの能力の問題として扱うのは原因の誤診断であり、より高性能なモデルであっても同じ16個のツールを与えられれば同様に選択の複雑さの増大に直面します。"
+    },
+    {
+      "id": "pool-011",
+      "domain": 2,
+      "taskStatement": "2.4",
+      "context": "Platform engineering / Jira integration",
+      "stem": "A platform team wants every engineer on their repository to automatically get access to a shared Jira MCP server when they clone the repo, authenticated via a token that must never be committed to version control. Separately, one senior engineer wants to experiment with a personal, still-unstable MCP server for a side project without affecting teammates. How should these two be configured?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Configure both servers in .mcp.json, but add a comment noting the experimental one is not yet production-ready."
+        },
+        {
+          "key": "B",
+          "text": "Configure the Jira server with the token hardcoded in .mcp.json, since the repository is private, and configure the experimental server the same way in a personal fork."
+        },
+        {
+          "key": "C",
+          "text": "Configure both servers in ~/.claude.json, so that neither is accidentally shared with the team until they're both confirmed stable."
+        },
+        {
+          "key": "D",
+          "text": "Configure the Jira server in the project's .mcp.json with the token referenced via environment variable expansion (e.g., ${JIRA_TOKEN}), and have the engineer configure their experimental server in their user-level ~/.claude.json."
+        }
+      ],
+      "correctAnswer": "D",
+      "explanationEn": "Project-scoped .mcp.json is for shared team tooling and supports environment variable expansion specifically so credentials don't need to be committed, while user-scoped ~/.claude.json is for personal or experimental servers that shouldn't affect teammates — matching each server to its correct scope satisfies both requirements. Putting both in .mcp.json still commits a token to version control regardless of an explanatory comment, and exposes the unstable experimental server to every teammate who clones the repo. Hardcoding the token directly in .mcp.json is exactly the practice environment variable expansion exists to prevent, and a private repository doesn't eliminate the risk of credential exposure through history, forks, or CI logs. Putting both servers in ~/.claude.json fails the actual requirement that every engineer automatically receive the Jira server on clone, since user-level configuration is never shared via version control.",
+      "explanationJa": "プロジェクトスコープの.mcp.jsonはチーム共有ツール向けであり、認証情報をコミットせずに済むよう環境変数展開（例：${JIRA_TOKEN}）に対応しています。一方、ユーザースコープの~/.claude.jsonは、チームメイトに影響を与えたくない個人用・実験用サーバー向けです。それぞれを正しいスコープに割り当てることで両方の要件を満たせます。両方を.mcp.jsonに設定すると、説明コメントを付けてもトークンがバージョン管理にコミットされる状態は変わらず、不安定な実験用サーバーもリポジトリをクローンした全メンバーに公開されてしまいます。トークンを.mcp.jsonに直接ハードコーディングするのは、まさに環境変数展開が防ごうとしている行為そのものであり、プライベートリポジトリであっても履歴・フォーク・CIログを通じた認証情報漏洩のリスクはなくなりません。両方を~/.claude.jsonに設定すると、クローン時に全エンジニアが自動的にJiraサーバーへアクセスできるという本来の要件を満たせません。ユーザーレベルの設定はバージョン管理を通じて共有されることがないためです。"
+    },
+    {
+      "id": "pool-012",
+      "domain": 2,
+      "taskStatement": "2.5",
+      "context": "Claude Code refactoring session",
+      "stem": "While refactoring a utility function, Claude Code's Edit tool call fails with an error indicating the anchor text it was given matches four separate locations in the file, none of which is unique enough to target reliably. The file is 1,800 lines long, and the same helper pattern is repeated with minor variations throughout. What is the most reliable way to proceed with this specific modification?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Use Read to load the full file contents, construct the corrected version in full, and use Write to replace the file."
+        },
+        {
+          "key": "B",
+          "text": "Retry the same Edit call with the identical anchor text, since transient tool failures are common and a second attempt often succeeds."
+        },
+        {
+          "key": "C",
+          "text": "Use Grep to search for the anchor text across the codebase to identify a more unique substring, then retry Edit with a longer anchor sourced only from Grep's matching line."
+        },
+        {
+          "key": "D",
+          "text": "Switch to Glob to locate all files matching the utility function's naming pattern, then apply the edit to each matching file individually."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "When Edit cannot find unique anchor text, Read followed by Write is the documented, reliable fallback for targeted modifications in files where surrounding context doesn't disambiguate the intended location. Simply retrying the identical Edit call ignores that this isn't a transient failure — the ambiguity is structural (four genuinely similar locations) and will recur identically on retry. Searching with Grep for a longer anchor sourced only from the single matching line doesn't guarantee uniqueness, since the four locations already share near-identical surrounding text; disambiguating reliably would require examining more surrounding context than a single matched line provides, which is effectively what Read does anyway. Glob solves a different problem — finding files by name pattern — and has no bearing on disambiguating one of four locations within a single already-identified file.",
+      "explanationJa": "Editが一意なアンカーテキストを見つけられない場合、周囲の文脈だけでは対象箇所を特定できないファイルにおける対象を絞った修正には、Readで読み込んでからWriteで置き換える方法が信頼できる標準的な代替策です。同一のEdit呼び出しを単純に再試行しても、これが一時的な失敗ではないという事実を無視することになります。曖昧さは構造的なもの（本当に似た4箇所が存在する）であり、再試行しても同じ結果が繰り返されます。Grepで一致した1行のみから得たより長いアンカーで検索しても、4箇所がすでにほぼ同一の周囲テキストを共有しているため一意性は保証されません。信頼できる形で判別するには、一致した1行以上の周囲の文脈を確認する必要があり、それは事実上Readが行っていることと同じです。Globはファイル名パターンによるファイル検索という別の問題を解決するものであり、すでに特定済みの1つのファイル内にある4箇所のうちどれかを判別することとは関係がありません。"
+    },
+    {
+      "id": "pool-013",
+      "domain": 3,
+      "taskStatement": "3.1",
+      "context": "Team onboarding / CLAUDE.md configuration",
+      "stem": "A tech lead is surprised that a newly onboarded contractor keeps committing directly to main and skipping the linter step, despite these being described as 'always enforced by Claude Code' during onboarding. Checking the repository, the project-level CLAUDE.md contains only a short paragraph about the tech stack and says nothing about commit conventions or linting. The tech lead's own machine, however, has a detailed ~/.claude/CLAUDE.md listing exactly those two rules, which is why the tech lead never noticed the problem. What is the most effective fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Ask the contractor to copy the tech lead's ~/.claude/CLAUDE.md file into their own home directory."
+        },
+        {
+          "key": "B",
+          "text": "Move the commit and linting conventions from the tech lead's ~/.claude/CLAUDE.md into the project-level CLAUDE.md (or a project .claude/rules/ file), so they're version-controlled and apply to every contributor."
+        },
+        {
+          "key": "C",
+          "text": "Add a note at the top of the project README asking new contributors to manually configure their local CLAUDE.md according to team conventions."
+        },
+        {
+          "key": "D",
+          "text": "Have the tech lead's ~/.claude/CLAUDE.md reference the contractor's account via an @import statement, so the rules propagate automatically."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "User-level CLAUDE.md settings apply only to the individual user and are never shared with teammates via version control, which is exactly why the contractor never received them despite the rules genuinely existing on the tech lead's machine; moving shared conventions into project-level configuration (or .claude/rules/) is the structural fix that makes them apply automatically to every contributor, including future ones. Asking the contractor to manually copy the file is a one-off workaround that won't stay in sync as the rules evolve and doesn't scale past one contractor. A README note relies on manual, error-prone human compliance rather than automatic, version-controlled propagation — the same category of failure that caused the original problem. An @import referencing another user's account isn't a supported mechanism; user-level configuration files aren't shared or cross-referenceable between accounts at all.",
+      "explanationJa": "ユーザーレベルのCLAUDE.md設定は個々のユーザーにのみ適用され、バージョン管理を通じてチームメイトと共有されることは決してありません。これこそが、テックリードのマシンにはルールが実在していたにもかかわらず、契約社員がそれを一度も受け取らなかった理由です。共有すべき規約をプロジェクトレベルの設定（またはproject .claude/rules/）に移すことが構造的な修正であり、これにより将来参加するメンバーも含め、すべての貢献者に自動的に適用されるようになります。契約社員に手動でファイルをコピーしてもらう方法は一時的な対処に過ぎず、ルールが進化しても同期が保たれず、契約社員が複数になった場合にはスケールしません。READMEに注記を追加する方法は、手動で誤りが起きやすい人間の遵守に依存しており、まさに元の問題を引き起こしたのと同じ種類の失敗要因です。他のユーザーのアカウントを参照する@importは、そもそもサポートされている仕組みではありません。ユーザーレベルの設定ファイルはアカウント間で共有も相互参照もされません。"
+    },
+    {
+      "id": "pool-014",
+      "domain": 3,
+      "taskStatement": "3.2",
+      "context": "Dependency-audit skill",
+      "stem": "A team builds a /audit-deps skill that scans package manifests, cross-references known vulnerabilities, and produces a long itemized report. Two problems have emerged: first, running the skill floods the main conversation with hundreds of lines of intermediate scanning output, making it hard to continue the actual task afterward; second, the skill occasionally attempts to modify files directly when it shouldn't, since its only job is to report findings, not fix them. Which two SKILL.md frontmatter configurations most directly address these two problems, respectively?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "argument-hint to prompt for which manifest file to scan, and context: fork to prevent file modification."
+        },
+        {
+          "key": "B",
+          "text": "allowed-tools restricted to read-only tools to isolate verbose output, and argument-hint to prevent file modification."
+        },
+        {
+          "key": "C",
+          "text": "context: fork to isolate the verbose scanning output in a sub-agent context, and allowed-tools restricted to read-only tools to prevent file modification."
+        },
+        {
+          "key": "D",
+          "text": "A project-scoped command in .claude/commands/ instead of a skill, combined with allowed-tools restricted to read-only tools."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "context: fork runs a skill in an isolated sub-agent context specifically to prevent verbose or exploratory output from polluting the main conversation, which directly addresses the first problem, while allowed-tools restricts which tools a skill can invoke during execution, directly preventing the unwanted file-write attempts described in the second problem. The other pairings mismatch mechanism to problem: argument-hint only prompts for missing invocation arguments and has no bearing on either output isolation or tool restriction. Swapping the skill for a project-scoped slash command doesn't help either, since slash commands don't support context: fork or allowed-tools frontmatter at all, so the isolation problem would remain unsolved even with tool restrictions in place.",
+      "explanationJa": "context: forkは、詳細な出力やメイン会話を汚染する探索的な出力を防ぐために、スキルを分離されたサブエージェントの文脈で実行する仕組みであり、これが1つ目の問題に直接対処します。一方allowed-toolsは、スキル実行中に呼び出せるツールを制限するもので、2つ目の問題である意図しないファイル書き込みの試みを直接防ぎます。他の組み合わせは仕組みと問題が噛み合っていません。argument-hintは呼び出し時に不足している引数を尋ねるだけで、出力の分離にもツール制限にも関係がありません。スキルの代わりにプロジェクトスコープのスラッシュコマンドに置き換える案も役に立ちません。スラッシュコマンドはそもそもcontext: forkやallowed-toolsのフロントマターに対応していないため、ツール制限を行っても出力分離の問題は未解決のままです。"
+    },
+    {
+      "id": "pool-015",
+      "domain": 3,
+      "taskStatement": "3.3",
+      "context": "Infrastructure-as-code (Terraform) repository",
+      "stem": "An infrastructure-as-code repository has Terraform files spread across a dozen service directories (services/api/main.tf, services/worker/main.tf, services/billing/network.tf, and so on), and the team wants every .tf file to follow the same resource-tagging and naming conventions regardless of which service directory it lives in. Placing a CLAUDE.md file in each of the twelve directories works but is tedious to keep in sync when the convention changes. What is the more maintainable alternative?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Consolidate the convention into the root-level CLAUDE.md under a heading titled 'Terraform Conventions,' relying on Claude to recognize when it's relevant."
+        },
+        {
+          "key": "B",
+          "text": "Create a .claude/skills/terraform-conventions skill that must be manually invoked before editing any .tf file."
+        },
+        {
+          "key": "D",
+          "text": "Symlink a single shared CLAUDE.md file into each of the twelve service directories."
+        },
+        {
+          "key": "C",
+          "text": "Create a single .claude/rules/ file with YAML frontmatter specifying paths: [\"**/*.tf\"], so the convention loads automatically whenever a matching file is being edited, regardless of directory."
+        }
+      ],
+      "correctAnswer": "D",
+      "explanationEn": "Glob-pattern rules in .claude/rules/ apply a convention by file type wherever matching files exist, which is the documented advantage over directory-level CLAUDE.md files for conventions that span multiple directories, and it means updating the convention requires editing exactly one file. Consolidating into the root CLAUDE.md relies on inference from a large, always-loaded file rather than deterministic, path-scoped activation, and adds irrelevant Terraform context to every unrelated task in the repository. A skill that must be manually invoked contradicts the goal of the convention being applied automatically whenever a .tf file is touched. Symlinking a shared file into twelve directories is a filesystem-level workaround that's fragile compared to a first-class scoping mechanism, and still requires maintaining twelve symlinks correctly as the repository structure evolves.",
+      "explanationJa": ".claude/rules/内のglobパターンによるルールは、該当するファイルが存在する場所を問わずファイル種別ごとに規約を適用でき、これは複数ディレクトリにまたがる規約に対してディレクトリレベルのCLAUDE.mdより優れている点として文書化されています。規約を更新する際もファイル1つを編集するだけで済みます。ルートのCLAUDE.mdに統合する方法は、常時読み込まれる大きなファイルからClaudeが関連性を推測することに依存しており、決定的でパスに紐づいた有効化にはならず、リポジトリ内の無関係なあらゆる作業にもTerraformの文脈が余分に加わってしまいます。手動で呼び出す必要があるスキルは、.tfファイルを編集するたびに自動的に規約が適用されるという目標と矛盾します。共有ファイルを12個のディレクトリにシンボリックリンクする方法は、一級のスコープ機構と比べて脆いファイルシステムレベルの回避策であり、リポジトリ構造が変化するたびに12個のシンボリックリンクを正しく維持し続ける必要があります。"
+    },
+    {
+      "id": "pool-016",
+      "domain": 3,
+      "taskStatement": "3.4",
+      "context": "Product engineering planning",
+      "stem": "Two tasks arrive on the same day. Task one: rename a utility function used in six files, where every call site is unambiguous and a project-wide search confirms there are no dynamic or reflective references to the old name. Task two: choose between two viable approaches for adding real-time notifications to the product — WebSockets versus Server-Sent Events — which will affect the infrastructure, several existing services, and future scalability. Which combination of approaches is most appropriate?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Direct execution for the rename, since it is well-scoped with a clear, verified set of call sites; plan mode for the notifications decision, since it involves architectural tradeoffs and infrastructure implications."
+        },
+        {
+          "key": "B",
+          "text": "Plan mode for both tasks, since any change touching multiple files benefits from an exploration phase first."
+        },
+        {
+          "key": "C",
+          "text": "Direct execution for both tasks, since Claude Code can revert changes if the notifications approach turns out to be wrong."
+        },
+        {
+          "key": "D",
+          "text": "Plan mode for the rename, since it touches six files, and direct execution for the notifications decision, since Claude can explore both options as it implements."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Plan mode is designed for tasks with architectural implications and multiple valid approaches, while direct execution suits simple, well-scoped changes with a verified, unambiguous set of call sites — the deciding factor is architectural complexity and reversibility, not raw file count. Applying plan mode to both tasks adds unnecessary overhead to a rename that's already fully understood and confirmed unambiguous by a project-wide search. Treating both as direct execution risks costly rework on the notifications decision, since infrastructure and multi-service changes are exactly the kind of hard-to-reverse architectural commitment plan mode's upfront exploration exists to prevent. Reversing the mapping — plan mode for the six-file rename and direct execution for the architectural decision — applies overhead where it isn't needed and skips it where the actual tradeoffs and unknowns exist.",
+      "explanationJa": "プランモードは、アーキテクチャ上の影響があり複数の有効なアプローチが存在するタスクのために設計されており、直接実行は、範囲が明確で検証済みの呼び出し箇所を持つ単純なタスクに適しています。判断基準はファイル数そのものではなく、アーキテクチャ上の複雑さと後戻りのしやすさです。両方のタスクにプランモードを適用すると、すでに完全に理解され、プロジェクト全体の検索で曖昧さがないと確認済みのリネーム作業に不要なオーバーヘッドを加えることになります。両方を直接実行として扱うと、通知機能の判断で高コストな手戻りのリスクを負うことになります。インフラや複数サービスにまたがる変更は、まさにプランモードの事前探索が防ごうとしている、後戻りしにくいアーキテクチャ上の決定そのものだからです。対応関係を逆にする案（6ファイルのリネームにプランモード、アーキテクチャ上の決定に直接実行）は、不要な箇所にオーバーヘッドをかけ、実際にトレードオフと未知数が存在する箇所ではそれを省いてしまいます。"
+    },
+    {
+      "id": "pool-017",
+      "domain": 3,
+      "taskStatement": "3.5",
+      "context": "Caching-layer design session",
+      "stem": "A developer asks Claude Code to implement a caching layer for an internal pricing service, but hasn't yet decided on an invalidation strategy, how to handle partial cache corruption, or what should happen if the underlying pricing source is temporarily unavailable during a cache miss. Rather than specifying all of this upfront, which approach is most likely to surface these considerations before implementation begins?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Ask Claude to write the caching layer immediately, then review the generated code line by line to identify any decisions it made implicitly."
+        },
+        {
+          "key": "B",
+          "text": "Ask Claude to first interview you with clarifying questions about invalidation strategy, corruption handling, and fallback behavior, before writing any code."
+        },
+        {
+          "key": "C",
+          "text": "Provide 2-3 concrete input/output examples of cache reads and writes, so Claude can infer the invalidation and fallback behavior from the examples."
+        },
+        {
+          "key": "D",
+          "text": "Ask Claude to write a comprehensive test suite for the caching layer first, then implement the code to satisfy the tests."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "The interview pattern — having Claude ask clarifying questions before implementing — is specifically suited to surfacing design considerations the developer hasn't yet anticipated in an unfamiliar or underspecified domain, which is exactly the situation described here. Writing the code first and reviewing it afterward is reactive rather than preventive, and risks silently committing to unstated defaults buried in the implementation rather than surfacing them as explicit decisions beforehand. Concrete input/output examples work well when the transformation itself is well-understood but described inconsistently in prose; they don't surface undecided architectural questions like invalidation strategy, since there's no example to construct until that strategy exists. Test-driven iteration is powerful once behavior is already defined, but here the fallback and invalidation behavior itself hasn't been decided, so there's nothing concrete yet to write tests against.",
+      "explanationJa": "実装前にClaudeに確認質問をさせるインタビュー・パターンは、開発者がまだ想定していない設計上の考慮事項を、不慣れであったり仕様が曖昧だったりする領域で表面化させるのに特に適しており、まさに今回の状況に当てはまります。先にコードを書いてから後で確認する方法は事後対応であり、実装内部に埋もれた未表明のデフォルト挙動を、事前の明示的な意思決定として表面化させないまま黙って確定させてしまうリスクがあります。具体的な入出力例は、変換ロジック自体はよく理解されているが自然言語による説明が一貫していない場合には有効ですが、無効化戦略のような未決定のアーキテクチャ上の問題を表面化させることはできません。その戦略自体が存在しない限り、例を作りようがないからです。テスト駆動の反復は、挙動がすでに定義されている場合には強力ですが、ここではフォールバックと無効化の挙動自体がまだ決まっていないため、テストを書く対象となる具体的なものがまだ存在しません。"
+    },
+    {
+      "id": "pool-018",
+      "domain": 3,
+      "taskStatement": "3.6",
+      "context": "CI/CD pull request review pipeline",
+      "stem": "A CI pipeline runs Claude Code twice on every pull request: once using the same session that generated an auto-fix commit, to also review that commit for correctness, and once more on each subsequent push to the PR, without providing the results of the prior review run. The team notices two issues: the self-review rarely flags problems with the auto-generated fix, and each new push re-reports issues that were already commented on and dismissed by a human reviewer as intentional. What two changes would most directly address these two issues, respectively?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase max_tokens on the review session so it has more room to catch its own mistakes, and re-run the entire review from scratch on every push for consistency."
+        },
+        {
+          "key": "B",
+          "text": "Add --output-format json to the review invocation so findings are machine-parseable, and rerun the fix-generation session an extra time before reviewing."
+        },
+        {
+          "key": "C",
+          "text": "Run the review in a fresh, independent Claude Code session rather than the one that generated the fix, and include the prior review's findings in context so the agent reports only new or still-unaddressed issues."
+        },
+        {
+          "key": "D",
+          "text": "Use the -p flag to run the review non-interactively, and instruct the model in the system prompt to 'be more critical of its own prior work.'"
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "An independent review session lacks the generator's reasoning context and is documented as more effective at catching subtle issues than self-review, which addresses the first problem; separately, including prior review findings in context and instructing the model to report only new or still-unaddressed issues is the documented fix for the duplicate-comment noise on subsequent pushes, addressing the second. Increasing max_tokens doesn't address either root cause, since token budget isn't what's causing self-review blindness, and re-running from scratch on every push is exactly what produces the duplicate-comment problem. --output-format json improves machine-parseability, not self-review bias, and rerunning fix-generation an extra time doesn't fix a review problem at all. The -p flag is necessary for automation generally but doesn't fix self-review bias, and instructing the same biased session to 'be more critical' still relies on unreliable self-correction within the same reasoning context rather than an independent instance.",
+      "explanationJa": "独立したレビューセッションは、生成時の推論の文脈を引き継いでおらず、自己レビューよりも巧妙な問題を発見するのに効果的であることが分かっており、これが1つ目の問題への対処になります。別の対策として、以前のレビュー結果を文脈に含め、新規または未対応の課題のみを報告するよう指示することが、後続のプッシュで重複コメントのノイズが発生する2つ目の問題に対する文書化された解決策です。max_tokensを増やしても、トークン予算不足が自己レビューの盲点の原因ではないため根本原因への対処にはならず、毎回のプッシュで最初からレビューをやり直すことこそが重複コメント問題を引き起こしています。--output-format jsonは機械可読性を高めますが自己レビューのバイアスには関係なく、修正生成セッションを追加でもう一度実行してもレビューの問題は解決しません。-pフラグは自動化一般に必要ですが自己レビューのバイアスは解消せず、同じバイアスのかかったセッションに「自身の過去の作業にもっと批判的になれ」と指示しても、独立したインスタンスではなく同じ推論文脈内での不確実な自己修正に頼ることになります。"
+    },
+    {
+      "id": "pool-019",
+      "domain": 4,
+      "taskStatement": "4.1",
+      "context": "Automated code-review prompt tuning",
+      "stem": "An automated code-review prompt currently instructs Claude to 'only report high-confidence, important issues and avoid noisy findings.' Despite this instruction, developers report the review still flags many minor stylistic preferences as if they were bugs, while occasionally missing a real off-by-one error. The team wants to meaningfully reduce false positives without suppressing genuine bug reports. What change to the prompt is most likely to work?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Strengthen the existing wording to 'only report extremely high-confidence issues that you are absolutely certain are bugs.'"
+        },
+        {
+          "key": "B",
+          "text": "Lower the model's temperature setting for the review call, so its judgments become more consistent between runs."
+        },
+        {
+          "key": "C",
+          "text": "Ask the model to assign a numeric confidence score to each finding, and filter out any finding below a 90% confidence threshold before reporting."
+        },
+        {
+          "key": "D",
+          "text": "Replace the vague confidence-based instruction with explicit categorical criteria defining exactly which issue types must be reported (e.g., logic errors, security issues) versus which must be skipped (e.g., naming preferences, formatting), with concrete code examples for each category."
+        }
+      ],
+      "correctAnswer": "D",
+      "explanationEn": "General instructions like 'be conservative' or confidence-based filtering don't improve precision the way specific, categorical criteria do, because the model has no shared, well-calibrated notion of 'high confidence' to filter against, whereas concrete criteria and worked examples give it an actual decision boundary to apply consistently. Strengthening the same vague wording is the same failure mode restated more forcefully, not a structural fix. Lowering temperature affects output variability between runs, not the underlying criteria being applied, so it wouldn't stop the model from consistently misclassifying style preferences as bugs. Asking for a numeric self-reported confidence score reintroduces exactly the unreliable proxy the exam guide warns about — the model isn't well-calibrated enough for an arbitrary numeric threshold to reliably separate genuine bugs from stylistic nitpicks.",
+      "explanationJa": "「保守的に」といった一般的な指示や確信度に基づくフィルタリングは、具体的で分類ベースの基準ほど精度を向上させません。モデルには、それに照らしてフィルタリングできるような、共有され適切に較正された「高い確信度」という概念が存在しないためです。一方、具体的な基準と実例は、モデルが一貫して適用できる実際の判断境界を与えます。同じ曖昧な文言をより強く言い換えても、同じ失敗パターンをより強い表現で繰り返しているだけで、構造的な修正にはなりません。temperatureを下げることは実行間の出力のばらつきに影響しますが、適用される基準そのものには影響しないため、モデルがスタイルの好みを一貫してバグと誤分類することを止められません。数値による自己申告の確信度スコアを求める案は、まさに試験ガイドが警告している信頼性の低い代理指標を再導入することになります。任意の数値しきい値で本物のバグとスタイル上の些細な指摘を確実に区別できるほど、モデルは較正されていません。"
+    },
+    {
+      "id": "pool-020",
+      "domain": 4,
+      "taskStatement": "4.2",
+      "context": "Support-ticket triage agent",
+      "stem": "A support-ticket triage agent must choose one of five categories (Billing, Technical, Account Access, Feature Request, Other) for each incoming ticket, but many tickets plausibly fit two categories at once — for example, 'I was charged twice after my password reset locked me out of billing settings' touches both Billing and Account Access. Detailed prose instructions describing each category's boundaries have not resolved the model's inconsistent choices on these ambiguous tickets. What is the most effective next step?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Add several few-shot examples of genuinely ambiguous tickets, each showing which category was chosen and a brief rationale for why it was chosen over the plausible alternative."
+        },
+        {
+          "key": "B",
+          "text": "Add a sixth category called 'Ambiguous' that the model can select whenever a ticket plausibly fits more than one category."
+        },
+        {
+          "key": "C",
+          "text": "Expand the prose description of each category with more adjectives distinguishing it from the others."
+        },
+        {
+          "key": "D",
+          "text": "Instruct the model to always pick the category mentioned first in the ticket text, since customers tend to state their primary concern first."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Few-shot examples that demonstrate reasoning for choosing one action over a plausible alternative are specifically effective for ambiguous-case handling, since they let the model generalize the underlying judgment to new, unseen ambiguous tickets rather than matching only cases explicitly listed. Adding an 'Ambiguous' category avoids making the actual routing decision, which is likely not useful to whatever downstream team or workflow consumes the category. Expanding the prose description has already effectively been tried, since detailed boundary descriptions are stated to not have resolved the inconsistency — the problem isn't a missing adjective, it's a lack of demonstrated judgment on edge cases. Picking whichever category is mentioned first is an arbitrary heuristic unrelated to which concern actually drives the customer's issue, and would misclassify tickets that lead with a secondary complaint before their primary one.",
+      "explanationJa": "もっともらしい代替案よりもある行動を選んだ理由を示すfew-shot例は、曖昧なケースの扱いに特に効果的です。明示的に挙げられたケースだけを模倣するのではなく、根底にある判断を未見の曖昧なチケットへと一般化できるようになるためです。「Ambiguous」というカテゴリを追加する案は、実際のルーティング判断を回避するだけで、そのカテゴリを利用する後続のチームやワークフローにとってはおそらく有用ではありません。説明文を拡充する案はすでに実質的に試されており、詳細な境界説明を用いても不整合が解消しなかったと明記されています。問題は形容詞の不足ではなく、境界事例に対する判断の実例が示されていないことです。最初に言及されたカテゴリを選ぶという方法は、顧客の問題を実際に左右している事情とは無関係な恣意的なヒューリスティックであり、主要な問題より先に副次的な不満を述べたチケットを誤分類してしまいます。"
+    },
+    {
+      "id": "pool-021",
+      "domain": 4,
+      "taskStatement": "4.3",
+      "context": "Invoice-processing extraction pipeline",
+      "stem": "An invoice-processing pipeline extracts structured line items from scanned invoices using tool_use with a strict JSON schema. After deployment, the pipeline reliably produces syntactically valid JSON for every invoice, but a monthly audit finds 4% of processed invoices have line items that don't sum to the stated invoice total, and a handful have the tax amount recorded in the subtotal field. What should the team conclude, and what's an appropriate response?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "The schema itself must be malformed, since a properly defined JSON schema would prevent both syntax and semantic errors; the fix is to tighten the schema's field types."
+        },
+        {
+          "key": "B",
+          "text": "Strict JSON schemas via tool use eliminate syntax errors but not semantic errors; the team should add a semantic validation step, such as comparing a calculated_total field against the stated total, and route discrepancies for correction or review."
+        },
+        {
+          "key": "C",
+          "text": "The extraction tool should be replaced with plain-text prompting and manual JSON parsing, since tool_use is evidently not achieving reliable structured output."
+        },
+        {
+          "key": "D",
+          "text": "Since the JSON is syntactically valid 100% of the time, the 4% of arithmetic mismatches are most likely caused by inconsistent tool_choice configuration, and should be fixed by switching to tool_choice: \"any\"."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Tool use with a JSON schema guarantees schema-compliant syntax, but has no bearing on whether the extracted values are semantically correct relative to one another; the documented pattern is to add explicit semantic checks, such as a calculated-versus-stated-total comparison, rather than expecting the schema alone to catch arithmetic inconsistencies. Concluding the schema is malformed misunderstands what JSON schemas actually validate — field types and structure, not cross-field arithmetic relationships that only a runtime check can verify. Abandoning tool_use for plain-text prompting and manual parsing is a regression to a strictly worse approach that would reintroduce the syntax errors tool_use had already eliminated, on top of not fixing the semantic issue either. Attributing the mismatches to tool_choice configuration misdiagnoses the cause; tool_choice governs whether and which tool is called, not the semantic correctness of values within an already well-formed call.",
+      "explanationJa": "JSONスキーマを伴うツールユースはスキーマに準拠した構文を保証しますが、抽出された値同士が意味的に整合しているかどうかには関係しません。文書化されているパターンは、計算合計と申告合計を比較するといった明示的な意味検証ステップを追加することであり、スキーマだけで算術的な不整合を検出できると期待することではありません。スキーマが不完全だと結論づけるのは、JSONスキーマが実際に検証するもの（フィールドの型や構造）と、実行時チェックでしか確認できないフィールド間の算術的関係を混同しています。tool_useをやめてプレーンテキストのプロンプトと手動のJSON解析に置き換えることは、tool_useがすでに解消していた構文エラーを再発させるだけの明確な後退であり、意味的な問題も解決しません。不整合の原因をtool_choiceの設定に帰する考え方は誤診断です。tool_choiceはツールが呼ばれるかどうか、どのツールが呼ばれるかを制御するものであり、すでに正しく整形された呼び出し内の値の意味的な正しさには関係しません。"
+    },
+    {
+      "id": "pool-022",
+      "domain": 4,
+      "taskStatement": "4.4",
+      "context": "Contract document-extraction pipeline",
+      "stem": "A document-extraction pipeline validates each extraction against a Pydantic schema and retries with the validation error appended to the prompt when a check fails. Two categories of validation failures appear in the logs: about 60% are cases where a date field was returned in an unexpected string format that the schema rejects, and about 40% are cases where a required 'contract_end_date' field is empty because the source document simply never states an end date (it's an evergreen contract). The team currently retries every failure up to three times. What change would most improve both reliability and efficiency?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase the retry limit from three to six attempts across the board, since some evergreen contracts may eventually be parsed correctly with enough attempts."
+        },
+        {
+          "key": "B",
+          "text": "Remove contract_end_date from the schema entirely, since a meaningful fraction of documents don't contain this field."
+        },
+        {
+          "key": "C",
+          "text": "Keep the retry-with-error-feedback loop for format-related failures, but make contract_end_date nullable in the schema, and stop retrying when the failure reason is a genuinely missing value rather than a format mismatch."
+        },
+        {
+          "key": "D",
+          "text": "Apply the same retry-with-error-feedback strategy uniformly to both categories, since consistent handling simplifies the pipeline."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Retries are effective for structural or format mismatches, where the model can correct its own output given specific feedback, but ineffective when the required information is genuinely absent from the source document — no number of retries will conjure a date that was never written down; making the field nullable prevents the model from being forced to fabricate a value just to satisfy a required field. Raising the retry limit wastes additional compute retrying a case that can never succeed regardless of attempt count. Removing the field entirely discards a legitimately useful value for the majority of contracts that do specify an end date, an overcorrection driven by the evergreen-contract minority. Applying the identical retry strategy to both categories ignores that they have fundamentally different, documented handling: retry-and-correct for the format mismatches, and nullable-and-accept for genuinely missing values.",
+      "explanationJa": "リトライは、モデルが具体的なフィードバックをもとに自身の出力を修正できる構造上・形式上の不整合には効果的ですが、必要な情報がそもそも元文書に存在しない場合には効果がありません。何度リトライしても、書かれたことのない日付が生成されることはないからです。フィールドをnullable（null許容）にすることで、必須フィールドを満たすためだけにモデルが値を捏造させられる事態を防げます。リトライ上限を引き上げても、試行回数に関わらず絶対に成功しないケースに追加の計算資源を浪費するだけです。フィールドを完全に削除する案は、実際に終了日を明記している大多数の契約にとって有用な値を失わせるものであり、少数の永久契約に引きずられた過剰な対処です。両カテゴリに同一のリトライ戦略を適用する案は、両者が本質的に異なる文書化された扱い方（形式不整合には再試行して修正、真に欠落した値にはnull許容として受け入れる）を持つことを無視しています。"
+    },
+    {
+      "id": "pool-023",
+      "domain": 4,
+      "taskStatement": "4.5",
+      "context": "Compliance ticket classification pipeline",
+      "stem": "A compliance team runs two Claude-powered processes: a nightly job that re-classifies roughly 50,000 historical support tickets against an updated policy taxonomy for a report reviewed the next business day, and an in-app process that classifies each new ticket the instant a customer submits it, so the live queue can route it to the right team immediately. The team is evaluating whether to move both to the Message Batches API for its 50% cost savings. Which evaluation is correct?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Move both processes to the Message Batches API, since the 50% cost savings apply regardless of workload, and any latency difference can be absorbed with a sufficiently large worker pool."
+        },
+        {
+          "key": "B",
+          "text": "Keep both processes on the synchronous API, since the Message Batches API does not support the multi-turn tool calling that either process might need in the future."
+        },
+        {
+          "key": "C",
+          "text": "Move the live per-ticket classification to the Message Batches API for the cost savings, and keep the nightly job synchronous, since it processes a much larger volume that benefits from immediate results."
+        },
+        {
+          "key": "D",
+          "text": "Move the nightly re-classification job to the Message Batches API, since its latency tolerance (reviewed the next business day) comfortably absorbs the batch API's up-to-24-hour processing window; keep the live per-ticket classification on the standard synchronous API."
+        }
+      ],
+      "correctAnswer": "D",
+      "explanationEn": "The Message Batches API offers substantial cost savings, but no guaranteed latency SLA and a processing window of up to 24 hours, making it well-suited to a non-blocking, latency-tolerant workload like a next-business-day report, and inappropriate for a live path that gates immediate queue routing on a response. Applying it to both regardless of workload ignores that no worker pool size compensates for the batch API's lack of a per-request latency guarantee; a live customer-facing classification simply cannot wait an indeterminate amount of time. Keeping both on the synchronous API out of caution about multi-turn tool calling forfeits real, available savings on the nightly job, which doesn't require multi-turn tool calling in the first place. Moving the live classification to batch and keeping the nightly job synchronous inverts the correct mapping, applying the latency-tolerant API to the latency-sensitive workload and vice versa.",
+      "explanationJa": "Message Batches APIは大幅なコスト削減をもたらしますが、レイテンシに関するSLAの保証はなく、処理には最大24時間かかる可能性があります。そのため、翌営業日に確認されるレポートのような非ブロッキングでレイテンシ許容度の高いワークロードには適していますが、応答を条件に即座にキューをルーティングするライブパスには不向きです。ワークロードにかかわらず両方に適用する案は、どれだけワーカープールを大きくしてもバッチAPIの1リクエストあたりのレイテンシ保証の欠如を補えないことを無視しています。顧客対応のライブ分類は、不確定な時間を待つことができません。マルチターンのツール呼び出しへの懸念から両方を同期APIのままにする案は、そもそもマルチターンのツール呼び出しを必要としない夜間ジョブにおける実際に得られるはずのコスト削減を放棄することになります。ライブ分類をバッチに移し夜間ジョブを同期のままにする案は対応関係が逆であり、レイテンシ許容度の高いAPIをレイテンシに敏感なワークロードに、その逆をレイテンシ許容度の高いワークロードに適用してしまっています。"
+    },
+    {
+      "id": "pool-024",
+      "domain": 4,
+      "taskStatement": "4.6",
+      "context": "Release-note / self-review automation",
+      "stem": "A team automates release-note generation: the same Claude Code session that just implemented a batch of bug fixes is then prompted, in the same conversation, to 'review your changes above for any regressions before we ship.' Over several releases, this self-review step has caught formatting issues but has never once caught a functional regression, even when regressions were later found by human QA. What does the exam guide's research on review architectures suggest is happening, and what's the recommended fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "A model that retains its own generation reasoning in context is less likely to question its own decisions; an independent Claude instance without that reasoning context should perform the review instead."
+        },
+        {
+          "key": "B",
+          "text": "The self-review step is working correctly; the team should simply add more explicit instructions asking it to 'think harder' about possible regressions."
+        },
+        {
+          "key": "C",
+          "text": "The issue is that the self-review step runs without extended thinking enabled; enabling extended thinking within the same session would resolve it."
+        },
+        {
+          "key": "D",
+          "text": "The self-review step should be replaced with a larger, more capable model within the same session, since a stronger model is less prone to confirmation bias."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "This is the documented self-review limitation: a model retains reasoning context from generation, making it less likely to question its own decisions in the same session, and independent review instances without that prior context are more effective at catching subtle issues — exactly the pattern observed across releases where formatting was caught but functional regressions never were. Assuming the step is 'working correctly' and just needs stronger instructions asks the same biased session to overcome a structural bias through wording alone, which the repeated failures across releases directly contradict. Extended thinking still occurs within the same session and the same accumulated reasoning context, so enabling it doesn't confer the independence that actually fixes the blind spot. Swapping in a larger model within the same session still carries forward the same generation reasoning trail, so a stronger model doesn't address the structural cause of the self-review blind spot, only its raw capability.",
+      "explanationJa": "これは文書化されている自己レビューの限界です。生成時の推論の文脈を保持しているモデルは、同じセッション内で自身の判断に疑問を持ちにくく、その以前の文脈を持たない独立したレビューインスタンスの方が、巧妙な問題を発見する上でより効果的です。まさに、リリースを重ねてもフォーマットの問題は発見できても機能的な回帰は一度も発見できなかったというパターンに合致します。このステップが「正しく機能している」だけで、より強い指示さえ加えればよいと考えるのは、同じバイアスのかかったセッションに対して文言だけで構造的なバイアスを克服させようとするものであり、複数のリリースにわたる繰り返しの失敗がそれを直接否定しています。拡張思考を有効にしても、同じセッションと同じ蓄積された推論文脈の中で行われることに変わりはないため、実際に盲点を解消する独立性を与えることにはなりません。同じセッション内でより大きなモデルに差し替えても、同じ生成時の推論の流れを引き継いだままであるため、より強力なモデルであっても自己レビューの盲点の構造的原因には対処できず、純粋な能力の向上にしかなりません。"
+    },
+    {
+      "id": "pool-025",
+      "domain": 5,
+      "taskStatement": "5.1",
+      "context": "Customer support refund chat session",
+      "stem": "A customer-support agent handles a 45-minute chat session involving a refund request. Midway through, the conversation-management layer compresses the first half of the transcript into a short summary to save tokens. By the end of the session, the agent tells the customer their refund will be $84.50, but the customer had explicitly stated early in the conversation that the correct amount, per a manager's prior verbal approval, was $94.50 — a detail that was compressed away as 'customer discussed refund amount' in the summary. What is the most effective structural fix to prevent this class of error?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase the token budget allocated to the conversation summary, so more of the original detail is retained in prose form."
+        },
+        {
+          "key": "B",
+          "text": "Extract specific transactional facts (amounts, dates, order numbers, prior approvals) into a persistent 'case facts' block that is included in every prompt outside the summarized history, rather than letting them be compressed along with the rest of the conversation."
+        },
+        {
+          "key": "C",
+          "text": "Disable summarization entirely, and always pass the full, unabridged transcript on every turn regardless of length."
+        },
+        {
+          "key": "D",
+          "text": "Instruct the summarization step to 'preserve all numbers mentioned in the conversation,' as part of its prompt."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Progressive summarization risks condensing numerical values and customer-stated expectations into vague prose, which is exactly what happened to the $94.50 approval; extracting transactional facts into a separate, persistent structured block sidesteps summarization's lossy compression entirely for the details that matter most. Increasing the summary's token budget only makes the same lossy, prose-based compression somewhat less lossy, with no guarantee any specific figure survives. Disabling summarization entirely reintroduces the token-budget problem summarization exists to solve, and doesn't scale to longer or multi-issue sessions. Instructing the summarization step to preserve all numbers still relies on a probabilistic generation step to reliably follow that instruction every time, which is the same class of unreliable compliance that caused the original loss.",
+      "explanationJa": "段階的な要約には、数値や顧客が明言した期待事項が曖昧な文章へと圧縮されてしまうリスクがあり、まさに94.50ドルの承認額に起きたことがそれです。取引に関する事実を独立した永続的な構造化ブロックに抽出することで、最も重要な詳細については要約による情報損失を完全に回避できます。要約に割り当てるトークン予算を増やしても、同じ文章ベースの圧縮による情報損失がやや軽減されるだけで、特定の数値が必ず残る保証はありません。要約を完全に無効化すると、要約がそもそも解決しようとしていたトークン予算の問題が再燃し、長時間または複数案件にまたがるセッションには対応できません。「会話中のすべての数値を保持せよ」と要約ステップに指示しても、その指示を毎回確実に守るかどうかは依然として確率的な生成処理に依存しており、これはまさに今回の情報損失を引き起こしたのと同じ種類の不確実なコンプライアンスです。"
+    },
+    {
+      "id": "pool-026",
+      "domain": 5,
+      "taskStatement": "5.2",
+      "context": "Customer support shipping request",
+      "stem": "A customer messages a support agent: 'My order is delayed and I really need it by Friday for a family event — is there any way to expedite shipping?' The company's written policy addresses standard delay compensation (credits, refunds) but says nothing about expediting shipment as a goodwill gesture for personal circumstances. The customer has not asked to speak to a human. What is the most appropriate action for the agent to take?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Offer the standard delay compensation (credit or refund) as a substitute, since it's the closest policy-covered remedy available, and close out the conversation."
+        },
+        {
+          "key": "B",
+          "text": "Autonomously approve an expedited shipment on the agent's own judgment, since the customer's request seems reasonable and low-risk."
+        },
+        {
+          "key": "C",
+          "text": "Escalate to a human agent, since the request falls into a genuine policy gap — expediting for personal circumstances — rather than a scenario the written policy actually addresses either way."
+        },
+        {
+          "key": "D",
+          "text": "Ask the customer to explicitly confirm they want to speak to a human before escalating, since they didn't request escalation themselves."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Appropriate escalation triggers include policy exceptions and gaps, not just complex cases or explicit customer requests, and this request sits squarely in a gap the policy is silent on — exactly the kind of case that should route to a human with the authority to make or decline an exception. Offering standard compensation instead silently substitutes a remedy the customer didn't actually ask for and understates the agent's genuine uncertainty about whether expediting is possible, rather than surfacing that uncertainty appropriately. Autonomously approving the request oversteps the agent's authority on something the policy doesn't address, risking inconsistent, ungoverned exceptions across customers. Requiring the customer to explicitly confirm they want a human adds an unnecessary step; a policy gap is itself a sufficient escalation trigger regardless of whether the customer explicitly asked to speak to a person.",
+      "explanationJa": "適切なエスカレーションのトリガーには、複雑なケースや顧客からの明示的な要求だけでなく、ポリシーの例外や欠落も含まれます。今回の依頼は、まさにポリシーが沈黙している欠落部分に該当し、例外を認めるか却下するかの権限を持つ人間へルーティングすべき典型的なケースです。標準的な補償を代わりに提示する対応は、顧客が実際には求めていない救済策を黙って差し替えるものであり、迅速発送が可能かどうかについてエージェントが実際に抱える不確実性を適切に表面化させず、かえって曖昧にしてしまいます。エージェントが自らの判断で自律的に依頼を承認することは、ポリシーが触れていない事項について権限を逸脱する行為であり、顧客ごとに一貫性のない統制されない例外を生むリスクがあります。顧客に「人間と話したいか」を明示的に確認させてからエスカレーションする方法は不要な手順であり、ポリシーの欠落自体が、顧客が明示的に人間との対話を求めたかどうかにかかわらず、十分なエスカレーションのトリガーとなります。"
+    },
+    {
+      "id": "pool-027",
+      "domain": 5,
+      "taskStatement": "5.3",
+      "context": "Multi-agent research pipeline (filings lookup)",
+      "stem": "In a multi-agent research pipeline, a document-analysis subagent searches an internal repository for filings related to a small, newly founded company and returns zero results, because the company genuinely has no filings on record yet. Separately, on a different run, the same subagent times out while querying the repository for a different company due to a network issue. Both cases currently return the coordinator an identical status: {result: [], status: 'no_data'}. What problem does this create, and how should it be fixed?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "The subagent should retry internally up to five times on any zero-result response before returning to the coordinator, regardless of whether the cause was a timeout or a genuinely empty result."
+        },
+        {
+          "key": "B",
+          "text": "The coordinator should always treat a 'no_data' status as a coverage gap and note it in the final report, regardless of the underlying cause."
+        },
+        {
+          "key": "D",
+          "text": "The subagent should suppress the timeout case entirely and simply omit that company from the final report, since surfacing an error to the coordinator adds unnecessary complexity."
+        },
+        {
+          "key": "C",
+          "text": "The coordinator cannot distinguish a legitimate empty result from an access failure that might succeed on retry; the subagent should return distinct signals — a successful empty result versus a structured failure with failure type and what was attempted — so the coordinator can decide whether to retry, proceed, or flag a coverage gap."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "Conflating access failures, which may warrant a retry or an alternative approach, with valid empty results, which represent a successful query that simply found nothing, hides information the coordinator needs to make an appropriate recovery decision; returning structured, distinct signals for each case is the documented fix. Retrying every zero-result response internally, including the genuinely empty case, wastes attempts on a query that can never produce different data no matter how many times it's repeated. Always treating 'no_data' as a coverage gap mislabels the newly founded company's search — which succeeded and legitimately found nothing — as an unexplained failure in the final report. Suppressing the timeout and simply omitting the company is the 'silently suppressing errors' anti-pattern the guide explicitly warns against, hiding a real, possibly recoverable failure from the coordinator entirely.",
+      "explanationJa": "リトライすれば成功する可能性のあるアクセス障害と、単に何も見つからなかった正当な空の結果とを混同すると、コーディネーターが適切な復旧判断を下すために必要な情報が失われます。それぞれについて構造化された別個のシグナルを返すことが、文書化された修正方法です。真に空の結果を含め、すべてのゼロ件応答を内部で最大5回までリトライする方法は、何度繰り返しても絶対に異なるデータを生み出せないクエリに試行を浪費することになります。「no_data」を常にカバレッジの欠落として扱う方法は、成功はしたが正当に何も見つからなかった新設企業の検索を、最終報告書の中で説明のつかない失敗として誤ってラベル付けしてしまいます。タイムアウトを抑制してその企業を最終報告書から単純に省く方法は、ガイドが明示的に警告している「エラーを黙って抑制する」というアンチパターンであり、実際には回復可能かもしれない障害をコーディネーターから完全に隠してしまいます。"
+    },
+    {
+      "id": "pool-028",
+      "domain": 5,
+      "taskStatement": "5.4",
+      "context": "Large codebase exploration session",
+      "stem": "An engineer uses Claude Code in one long-running session to explore an unfamiliar 200,000-line codebase, identifying which classes implement a plugin interface. After roughly ninety minutes of continuous exploration in the same session, the engineer notices Claude begins giving inconsistent answers about which classes it already found, and starts describing 'typical' plugin patterns instead of the specific classes it discovered earlier in the session. What combination of changes would most directly address this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Have Claude maintain a scratchpad file recording confirmed findings as they're discovered, and delegate further exploration to subagents that report back concise summaries rather than continuing to accumulate raw discovery output in the main session."
+        },
+        {
+          "key": "B",
+          "text": "Increase max_tokens for each individual turn, so Claude has more room to restate its earlier findings in full each time."
+        },
+        {
+          "key": "C",
+          "text": "Ask Claude to re-read the entire codebase from the beginning once inconsistencies are noticed, to refresh its understanding."
+        },
+        {
+          "key": "D",
+          "text": "Switch to a model with a larger context window, so the same single-session exploration pattern can continue for longer before degradation occurs."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "This is the documented pattern for context degradation during extended exploration sessions: a scratchpad file persists key findings across context boundaries, and subagent delegation isolates verbose discovery output so the main session's context isn't consumed by raw exploration detail, directly counteracting the described symptoms of inconsistent, 'typical pattern' answers. Increasing per-turn max_tokens expands output capacity but does nothing to prevent the underlying degradation caused by a context window filling with undifferentiated exploration history. Re-reading the entire codebase from scratch is expensive and doesn't prevent the same degradation from recurring later in an even longer session, since it doesn't change how findings are being persisted. Switching to a larger-context model delays the same failure mode rather than addressing its cause — the fix is architectural (scratchpad plus delegation), not simply a bigger context window applied to the same accumulation pattern.",
+      "explanationJa": "これは、長時間にわたる探索セッションにおけるコンテキスト劣化に対する文書化されたパターンです。スクラッチパッドファイルはコンテキストの境界を越えて重要な発見事項を保持し、サブエージェントへの委譲は詳細な探索出力を切り離すことで、メインセッションのコンテキストが未整理の探索詳細で消費されるのを防ぎます。これにより、記述された「一貫性のない回答」や「典型的なパターン」を語り出すという症状に直接対処できます。ターンごとのmax_tokensを増やすと出力容量は広がりますが、未整理の探索履歴でコンテキストウィンドウが埋まっていくという根本的な劣化を防ぐことにはなりません。コードベース全体を最初から読み直す方法はコストが高く、発見事項の保持方法自体は変わらないため、さらに長いセッションで同じ劣化が再発するのを防げません。より大きなコンテキストを持つモデルへの切り替えは、原因への対処ではなく同じ失敗モードを先送りするだけであり、修正はアーキテクチャ上のもの（スクラッチパッドと委譲の組み合わせ）であって、同じ蓄積パターンに単に大きなコンテキストウィンドウを当てはめることではありません。"
+    },
+    {
+      "id": "pool-029",
+      "domain": 5,
+      "taskStatement": "5.5",
+      "context": "Vendor invoice extraction & human review",
+      "stem": "An extraction pipeline for vendor invoices reports 97% overall field-level accuracy across a six-month sample, and the finance team is considering removing human review entirely for high-confidence extractions to cut turnaround time. Before doing so, an analyst breaks the same sample down by document type and finds accuracy is 99.2% for standard single-page invoices, but only 81% for multi-currency invoices with embedded credit memos, a document type that makes up 6% of volume. What should this finding change about the plan to remove human review?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Nothing — since multi-currency invoices are only 6% of total volume, their lower accuracy has a negligible effect on the 97% aggregate figure and can be safely ignored."
+        },
+        {
+          "key": "B",
+          "text": "Human review should be retained for multi-currency invoices with embedded credit memos (and any other segments shown to underperform), even as review is reduced for well-performing segments like standard single-page invoices."
+        },
+        {
+          "key": "C",
+          "text": "The 97% aggregate figure should be treated as unreliable, and the entire pipeline should be rebuilt from scratch before any review changes are considered."
+        },
+        {
+          "key": "D",
+          "text": "Human review should be removed for all document types, but the confidence threshold used to flag extractions for review should be raised uniformly across all types."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Aggregate accuracy metrics can mask meaningfully worse performance on specific document types, and the correct response is to validate accuracy by segment before automating away human review, keeping review in place specifically where a segment underperforms while still reducing it elsewhere. Dismissing the finding because multi-currency invoices are a small share of volume is exactly the failure mode the guide warns about — a low-volume segment's poor accuracy doesn't need to move the aggregate number much to represent a real, costly error rate for the specific transactions and customers in that segment. Treating the aggregate figure as unreliable and rebuilding the entire pipeline overreacts to a segment-specific finding, when the well-performing 94% of volume doesn't require rebuilding. Raising a uniform confidence threshold across all document types doesn't correct for the multi-currency segment's specifically worse underlying accuracy the way segment-aware routing would, since a single threshold applied uniformly still treats structurally different error rates as if they were the same.",
+      "explanationJa": "全体の精度指標は、特定の文書タイプにおける実質的に悪い性能を覆い隠すことがあり、正しい対応は人によるレビューを自動化で置き換える前にセグメントごとに精度を検証することです。性能が悪いセグメントについてはレビューを維持しつつ、他のセグメントではレビューを縮小します。多通貨請求書が全体量のわずか6%であることを理由にこの発見を軽視することは、まさにガイドが警告している失敗パターンです。低ボリュームのセグメントの精度の低さは、全体の数値をそれほど動かさなくても、そのセグメントに属する特定の取引や顧客にとっては実質的でコストのかかるエラー率を意味します。全体の数値を信頼できないと判断してパイプライン全体を作り直すことは、セグメント固有の発見に対する過剰反応であり、良好な性能を示す94%のボリュームについては作り直す必要がありません。すべての文書タイプに一律の確信度しきい値を引き上げる方法は、セグメントを意識したルーティングとは異なり、多通貨セグメント特有の低い精度を是正できません。単一のしきい値を一律に適用することは、構造的に異なるエラー率をあたかも同じであるかのように扱い続けることになるからです。"
+    },
+    {
+      "id": "pool-030",
+      "domain": 5,
+      "taskStatement": "5.6",
+      "context": "Market-research synthesis pipeline",
+      "stem": "A synthesis subagent in a market-research pipeline combines findings from two credible industry reports on the same metric — one states the global market grew 14% year-over-year, the other states 9% — without noting that the first report's data was collected six months before the second's, during a period the second report separately describes as an unusual demand spike. The final synthesized output presents a single blended estimate of 'approximately 11.5% growth' with no indication that the two source figures disagreed or why. What is the most effective fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Instruct the synthesis subagent to always defer to whichever source has the more recent publication date, and discard the older figure entirely."
+        },
+        {
+          "key": "B",
+          "text": "Instruct the synthesis subagent to average the two figures whenever they disagree by less than 10 percentage points, and flag a conflict only above that threshold."
+        },
+        {
+          "key": "C",
+          "text": "Require subagents to preserve both figures with source attribution and publication/collection dates in their structured output, and have the synthesis step explicitly annotate the conflict and its likely temporal explanation, rather than blending the numbers into a single value."
+        },
+        {
+          "key": "D",
+          "text": "Remove both figures from the report and replace them with a qualitative statement that the market 'grew during the period,' since the specific numbers are in dispute."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "The correct pattern for conflicting statistics from credible sources is to annotate the conflict with source attribution rather than arbitrarily selecting or blending one value, and requiring publication or collection dates prevents a genuine temporal difference — a demand-spike period versus a later, more normal period — from being misread as a plain contradiction. Always deferring to the more recent source discards potentially still-relevant information and assumes recency alone resolves the disagreement, when here the disagreement is actually explained by a temporary spike rather than either source simply being wrong. The blended-average approach, which is what the scenario describes actually happening, manufactures a figure that doesn't represent either source's real finding and obscures the more informative explanation — the temporal demand spike — entirely. Removing both numbers discards specific, sourced information that report readers would find valuable, when the better fix is to present both figures with their dates and context rather than stripping them out.",
+      "explanationJa": "信頼できる情報源から得た矛盾する統計に対する正しいパターンは、恣意的に一方の値を選んだり両者を平均したりするのではなく、出典を明示した上で矛盾に注記を付けることです。公表日または収集日を必須とすることで、需要急増期と、その後のより通常の期間という本物の時間的な差異が、単純な矛盾として誤読されるのを防げます。常により新しい情報源を優先する方法は、依然として有用かもしれない情報を切り捨て、新しさだけで不一致が解消すると仮定していますが、実際にはこの不一致は一時的な急増によって説明されるものであり、どちらかの情報源が単に誤っているわけではありません。10ポイント未満の差なら平均するという方法は、まさにこのシナリオで実際に起きていることであり、どちらの情報源の実際の結果も表さない数値を作り出し、より有益な説明である一時的な需要急増という事実を完全に覆い隠してしまいます。両方の数値を削除する方法は、報告書の読者にとって価値のある具体的で出典のある情報を失わせるものであり、より良い修正策は数値を取り除くのではなく、日付と文脈とともに両方の数値を提示することです。"
+    },
+    {
+      "id": "pool-031",
+      "domain": 1,
+      "taskStatement": "1.6",
+      "context": "Multi-file migration agent",
+      "stem": "An engineer builds a codebase-migration agent that processes each of 140 files in a legacy module using a fixed three-step prompt chain: read the file, rewrite it to the new API, run its unit test. This works well for most files, but roughly 15 files define shared interfaces that other files depend on, and changing those in isolation silently breaks callers that the per-file chain never revisits. What change to the agent's decomposition strategy would most directly fix this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase the number of unit tests run per file, so breakages in dependent files are caught earlier."
+        },
+        {
+          "key": "B",
+          "text": "Keep the fixed three-step chain for every file, but run all 140 files in parallel instead of sequentially, to surface failures faster."
+        },
+        {
+          "key": "C",
+          "text": "Move to adaptive decomposition: after the per-file pass, run a separate cross-file consistency pass that specifically re-checks callers of any shared interface that was modified."
+        },
+        {
+          "key": "D",
+          "text": "Add a fourth fixed step, 'update dependents,' to the same per-file chain, run immediately after each file's rewrite."
+        }
+      ],
+      "correctAnswer": "C",
+      "explanationEn": "A fixed prompt chain applied uniformly per file cannot detect cross-file breakage because each file is treated as an independent unit of work; the documented fix is adaptive decomposition that adds a dedicated cross-file integration pass on top of the per-file pass, specifically targeting files affected by shared-interface changes. Running more unit tests per file only strengthens the same per-file-isolated view and still never revisits callers in other files. Parallelizing the same fixed chain changes execution speed, not what work is actually being done, so it doesn't address the missing cross-file check. Adding a fourth step to the per-file chain still evaluates each file in isolation immediately after its own rewrite, before all the shared-interface files have even finished migrating, so it can't reliably catch breakage from changes made later in the run.",
+      "explanationJa": "ファイルごとに一律に適用される固定プロンプトチェーンでは、各ファイルが独立した作業単位として扱われるため、ファイル横断的な破壊を検出できません。文書化された修正策は、ファイル単位のパスに加えて、共有インターフェースの変更によって影響を受けたファイルを特に対象とする専用のクロスファイル統合パスを追加する、適応的な分解です。ファイルごとの単体テストを増やしても、同じファイル単位の孤立した見方が強化されるだけで、他ファイルの呼び出し元を再確認することにはなりません。同じ固定チェーンを並列化しても実行速度が変わるだけで、実際に行われる作業内容は変わらないため、欠落しているクロスファイルチェックには対処できません。ファイル単位のチェーンに4番目のステップを追加しても、自身の書き換え直後という各ファイルが孤立した時点で評価されるため、共有インターフェースを持つ他のファイルがまだ移行を終えていない段階では、後で行われる変更による破壊を確実には捉えられません。"
+    },
+    {
+      "id": "pool-032",
+      "domain": 1,
+      "taskStatement": "1.1",
+      "context": "Content-moderation review agent",
+      "stem": "A content-moderation agent built directly on the Claude API loops through flagged posts, calling tools to fetch context and issue a verdict. The control flow currently checks whether the assistant's text output contains the word 'DONE' to decide whether to stop the loop for a given post. On posts requiring multiple context lookups, the model sometimes writes an intermediate sentence like 'Gathering more context before I'm done reviewing this,' which triggers an early, incomplete verdict. What is the most reliable fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Change the trigger word from 'DONE' to a rarer term like 'VERDICT_FINAL' that is less likely to appear in intermediate sentences."
+        },
+        {
+          "key": "B",
+          "text": "Drive the loop off the API response's stop_reason field, continuing whenever it is \"tool_use\" and stopping only when it is \"end_turn\"."
+        },
+        {
+          "key": "C",
+          "text": "Cap the loop at 5 turns per post and treat reaching the cap as a completed review to bound latency."
+        },
+        {
+          "key": "D",
+          "text": "Ask the model to output the trigger word in all capital letters on its own line, and parse only lines matching that exact pattern."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "stop_reason is the API's structured signal for whether the model intends to continue (\"tool_use\") or considers the turn complete (\"end_turn\"), which sidesteps the fundamental unreliability of scanning free-text output for a marker word that can appear incidentally in ordinary sentences. Choosing a rarer trigger word only lowers the odds of an accidental match without eliminating the underlying fragility of text-based parsing. An iteration cap treated as success would silently stop reviewing posts that legitimately need more than 5 turns, misrepresenting incomplete reviews as completed ones. Requiring the word on its own line in all caps is a stricter parser but is still built on the same unreliable premise — that the model will reliably follow a formatting instruction on every single response — rather than using the structured signal the API already provides.",
+      "explanationJa": "stop_reasonは、モデルが継続を意図しているか（\"tool_use\"）、ターンが完了したと判断しているか（\"end_turn\"）を示すAPIの構造化されたシグナルであり、通常の文中に偶然出現しうる合言葉を自由記述テキストから探すという根本的な不安定さを回避できます。より珍しい合言葉を選んでも、偶然一致する確率が下がるだけで、テキストベースの解析が抱える本質的な脆さは解消されません。反復上限を成功とみなす方法は、5ターンを超えて正当に必要とする投稿のレビューを黙って打ち切ってしまい、未完了のレビューを完了したものとして誤って扱うことになります。合言葉をすべて大文字で単独行に出力させる方法は、より厳格なパーサーではあるものの、モデルが毎回確実に書式指示に従うという同じ不安定な前提の上に成り立っており、APIがすでに提供している構造化シグナルを利用していません。"
+    },
+    {
+      "id": "pool-033",
+      "domain": 1,
+      "taskStatement": "1.2",
+      "context": "Insurance-claims coordinator agent",
+      "stem": "An insurance company's coordinator agent always routes every incoming claim through the same fixed sequence of three subagents — a policy-lookup subagent, a fraud-signal subagent, and a document-verification subagent — regardless of claim type. For simple, pre-approved low-dollar claims that clearly don't require fraud screening, this adds unnecessary latency and cost. What change addresses this while preserving the coordinator's central routing role?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Have the coordinator dynamically select which subagents to invoke based on claim characteristics (amount, claim type, policy flags), rather than always invoking all three."
+        },
+        {
+          "key": "B",
+          "text": "Merge all three subagents into a single subagent that handles policy lookup, fraud screening, and document verification internally for every claim."
+        },
+        {
+          "key": "C",
+          "text": "Keep the fixed sequence, but reduce the fraud-signal subagent's own internal processing time through prompt shortening."
+        },
+        {
+          "key": "D",
+          "text": "Let the policy-lookup subagent decide internally whether to skip calling the other two subagents, without informing the coordinator."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Dynamic subagent selection lets the coordinator route each claim only to the subagents actually relevant to it, which directly eliminates unnecessary fraud-screening latency on claims that clearly don't need it while keeping the coordinator as the single point of routing decisions. Merging all three into one subagent doesn't reduce unnecessary work per claim; a simple low-dollar claim would still trigger the same combined fraud-screening logic internally. Shortening the fraud-signal subagent's prompt may reduce its per-call latency somewhat but still calls it on every claim, including the ones that clearly don't need it, leaving the core inefficiency unaddressed. Letting the policy-lookup subagent unilaterally decide to skip other subagents reintroduces a hub-and-spoke violation, since routing decisions are being made outside the coordinator's visibility.",
+      "explanationJa": "動的なサブエージェント選択により、コーディネーターは各請求に実際に関連するサブエージェントにのみ処理を振り分けられるようになり、明らかに不要な請求に対する不正検知の遅延を直接排除しつつ、コーディネーターを唯一のルーティング判断の主体として維持できます。3つのサブエージェントを1つに統合しても、請求ごとの不要な処理は減りません。少額の単純な請求でも、内部的には同じ統合された不正検知ロジックが動いてしまいます。不正検知サブエージェントのプロンプトを短縮すると1回あたりのレイテンシは多少下がるかもしれませんが、明らかに不要な請求も含め依然としてすべての請求に対して呼び出されるため、根本的な非効率さは解消されません。ポリシー照会サブエージェントが他の2つを呼ぶかどうかを独自に判断する方法は、コーディネーターの可視範囲外でルーティング判断が行われることになり、ハブアンドスポーク違反を再発させます。"
+    },
+    {
+      "id": "pool-034",
+      "domain": 1,
+      "taskStatement": "1.4",
+      "context": "Loan-underwriting escalation",
+      "stem": "A loan-underwriting agent processes standard applications automatically, but must escalate to a human underwriter whenever an application requires manual judgment (e.g., unusual income sources). Currently, escalation consists of the agent sending a message that just says 'Needs manual review: application #48213.' Underwriters report they have to re-derive the applicant's financials and re-read supporting documents from scratch before they can act, adding significant delay. What change to the escalation mechanism would most directly fix this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Have the agent produce a structured handoff summary — the specific fields that triggered manual review, the applicant's key financial figures already extracted, and what the agent already checked — attached to the escalation."
+        },
+        {
+          "key": "B",
+          "text": "Reduce the escalation threshold so fewer applications require manual review in the first place."
+        },
+        {
+          "key": "C",
+          "text": "Have the agent attempt to make the underwriting decision itself in ambiguous cases, and only escalate if it's later found to be wrong."
+        },
+        {
+          "key": "D",
+          "text": "Change the escalation message to include a higher-urgency label, such as 'URGENT: Needs manual review,' so underwriters prioritize it."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "A structured handoff summary carries forward exactly the context a human reviewer needs — what was found, what triggered escalation, what's already been verified — which eliminates the redundant re-derivation work underwriters currently have to perform; this is the documented fix for costly escalations that lack context. Lowering the escalation threshold might reduce volume but doesn't fix the actual problem underwriters report, which is that each individual escalation lacks usable context, not that there are too many of them. Having the agent make ambiguous decisions itself and correcting only after the fact defeats the purpose of escalation entirely, since these are exactly the cases identified as needing human judgment before a decision is made, not after. Adding an urgency label changes how quickly an underwriter picks up the case, not how much redundant work they have to do once they do.",
+      "explanationJa": "構造化された引き継ぎ要約は、何が見つかったか・何がエスカレーションの引き金になったか・すでに何を確認済みかといった、人間のレビュー担当者が必要とする文脈をそのまま引き継ぎ、審査担当者が現在強いられている重複した再導出作業をなくします。これは、文脈を欠いたコストの高いエスカレーションに対する文書化された修正策です。エスカレーションの閾値を下げれば件数は減るかもしれませんが、審査担当者が報告している実際の問題（件数が多すぎることではなく、個々のエスカレーションに使える文脈が欠けていること）には対処できません。エージェント自身が曖昧なケースの判断を下し、後から誤りが分かった場合にのみ修正する方法は、エスカレーションの目的そのものを損ないます。これらはまさに、判断が下された後ではなく下される前に人間の判断が必要と特定されたケースだからです。緊急度ラベルを追加しても、審査担当者がそのケースにどれだけ早く着手するかが変わるだけで、着手した後にこなさなければならない重複作業の量は変わりません。"
+    },
+    {
+      "id": "pool-035",
+      "domain": 1,
+      "taskStatement": "1.3",
+      "context": "Legal discovery review pipeline",
+      "stem": "A coordinator agent in a legal discovery pipeline invokes a document-classification subagent via the Task tool, expecting it to know which case matter and privilege-review criteria apply, since that information was discussed earlier in the coordinator's own conversation. The subagent instead classifies documents using generic, matter-agnostic criteria, missing several documents that should have been flagged privileged under the specific matter's rules. What is the most likely cause, and what is the fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "The subagent's model is too weak for the task; upgrading it to a more capable model will let it infer the correct matter and criteria."
+        },
+        {
+          "key": "B",
+          "text": "Subagents do not automatically inherit the coordinator's conversation context; the Task invocation must explicitly pass the matter identifier and privilege-review criteria as part of the subagent's input."
+        },
+        {
+          "key": "C",
+          "text": "The subagent should be given a broader toolset so it can look up the case matter itself from a case-management system."
+        },
+        {
+          "key": "D",
+          "text": "The issue is a prompt-wording problem; instructing the subagent to 'always check for privilege carefully' will resolve it."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Subagents invoked via the Task tool do not automatically inherit the coordinator's conversation history — context must be explicitly included in the Task invocation itself, and the described symptom (falling back to generic, matter-agnostic criteria) is the direct signature of that context simply never having been passed. Upgrading the model doesn't address a missing-input problem; a stronger model still cannot classify against criteria it was never given. Granting broader tool access to let the subagent look up the matter itself is a workaround that adds an extra, avoidable round trip and tool dependency for information the coordinator already has on hand and could pass directly. Strengthening prompt wording about carefulness doesn't supply the actual matter-specific criteria the subagent is missing; it's not a diligence problem, it's a missing-information problem.",
+      "explanationJa": "Taskツールで起動されたサブエージェントは、コーディネーターの会話履歴を自動的には引き継ぎません。文脈はTask呼び出し自体に明示的に含める必要があり、記述されている症状（案件に依存しない汎用的な基準へのフォールバック）は、まさにその文脈が一度も渡されなかったことの直接的な兆候です。モデルをアップグレードしても入力欠落の問題は解決しません。より強力なモデルであっても、一度も与えられていない基準に照らして分類することはできません。サブエージェント自身が案件管理システムから案件情報を調べられるよう、より広いツールアクセスを与える方法は、コーディネーターがすでに手元に持っていて直接渡せる情報のために、余分で回避可能な往復とツール依存を追加する回避策です。注意深さを強調するようプロンプトの文言を強めても、サブエージェントに欠けている実際の案件固有の基準は補われません。これは注意力の問題ではなく、情報が欠落している問題です。"
+    },
+    {
+      "id": "pool-036",
+      "domain": 1,
+      "taskStatement": "1.7",
+      "context": "Design-exploration branching session",
+      "stem": "A frontend engineer has been using Claude Code in a session that has already explored the existing component library in depth and settled on a shared set of design tokens. The engineer now wants to explore two different layout approaches for a new dashboard, built on top of that same shared understanding, without either exploration's dead ends contaminating the other or the original session. What is the most appropriate way to proceed?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Use fork_session twice from the current session's endpoint, exploring one layout approach in each fork, leaving the original session's context intact as the shared baseline."
+        },
+        {
+          "key": "B",
+          "text": "Use --resume on the current session twice in sequence, exploring one layout fully before starting the other in the same resumed session."
+        },
+        {
+          "key": "C",
+          "text": "Start two entirely new sessions from scratch, and have Claude re-explore the component library and design tokens independently in each."
+        },
+        {
+          "key": "D",
+          "text": "Explore both layout approaches within the single current session in the same conversation, comparing them at the end."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "fork_session is designed for exactly this case: branching from a shared, still-valid baseline to explore divergent approaches independently, so a dead end in one layout exploration doesn't pollute the other fork or the original session. Resuming the same session twice in sequence means the second exploration's context still includes everything discovered (and any dead ends) from the first, contaminating it with irrelevant or misleading prior context. Starting two brand-new sessions from scratch discards the already-completed exploration of the component library and design tokens, forcing redundant re-discovery work in each. Exploring both approaches in a single conversation risks the same cross-contamination as sequential resuming, since both layouts' reasoning and any abandoned directions accumulate together in one context.",
+      "explanationJa": "fork_sessionはまさにこのようなケースのために設計されています。共有された、依然として有効なベースラインから分岐し、それぞれの方向性を独立して探索できるため、一方のレイアウト探索での行き詰まりが、もう一方のフォークや元のセッションを汚染することがありません。同じセッションを2回連続で再開すると、2つ目の探索の文脈には、1つ目で発見された内容（および行き詰まり）がすべて引き継がれ、無関係あるいは誤解を招く過去の文脈で汚染されてしまいます。まったく新しい2つのセッションを最初から始める方法は、すでに完了しているコンポーネントライブラリとデザイントークンの探索を破棄してしまい、それぞれで重複した再発見作業を強いることになります。単一の会話の中で両方のアプローチを探索する方法は、両方のレイアウトに関する推論や放棄された方向性が1つの文脈に一緒に蓄積されるため、連続的な再開と同様の相互汚染のリスクがあります。"
+    },
+    {
+      "id": "pool-037",
+      "domain": 2,
+      "taskStatement": "2.2",
+      "context": "Warehouse inventory-adjustment agent",
+      "stem": "An MCP tool called adjust_inventory returns {isError: true, message: 'Failed'} whenever a SKU doesn't exist, whenever the requested adjustment would drive stock negative (a business rule violation), and whenever the warehouse management system is mid-deployment and briefly rejecting all writes. An agent using this tool currently retries every failure identically up to three times, sometimes retrying negative-stock rejections that will never succeed and sometimes giving up too early during the brief deployment window. What redesign would fix this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase the retry count from three to ten across all failure types, so transient deployment windows are more likely to be covered."
+        },
+        {
+          "key": "B",
+          "text": "Have the tool return structured error metadata — errorCategory (validation, business, transient), isRetryable, and a specific message — so the agent can branch its retry behavior per category."
+        },
+        {
+          "key": "C",
+          "text": "Have the agent call a separate 'check SKU exists' tool before every adjust_inventory call, to catch the missing-SKU case earlier."
+        },
+        {
+          "key": "D",
+          "text": "Change the tool's description to note the three failure causes in prose, without changing the response payload."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Structured error metadata — distinguishing errorCategory and an isRetryable flag — gives the agent exactly the information needed to retry transient deployment-window failures, avoid retrying business-rule violations that can never succeed, and surface validation errors clearly, which a single undifferentiated 'Failed' response cannot support. Raising the retry count uniformly still wastes retries on negative-stock business violations that no amount of retrying resolves, while not addressing the real problem of the agent being unable to tell failure types apart. Adding a separate existence-check call only handles the missing-SKU case and does nothing to distinguish the business-rule and transient-outage failures from each other. Updating only the description leaves the actual runtime response the agent reasons over at call time unchanged, so its retry behavior wouldn't improve.",
+      "explanationJa": "errorCategoryとisRetryableフラグを区別する構造化エラーメタデータは、一時的なデプロイ期間中の失敗はリトライし、絶対に成功しないビジネスルール違反はリトライを避け、バリデーションエラーを明確に表面化させるために必要な情報をエージェントに与えます。これは単一の未分化な「Failed」応答では実現できません。リトライ回数を一律に増やしても、在庫がマイナスになるビジネスルール違反に対しては何度リトライしても解決せず無駄になり、エージェントが失敗の種類を区別できないという本当の問題には対処できません。別途SKU存在確認ツールの呼び出しを追加しても、SKU不存在のケースにしか対応できず、ビジネスルール違反と一時的な障害を互いに区別することにはなりません。説明文だけを更新しても、エージェントが呼び出し時に実際に推論の根拠とするランタイムの応答は変わらないため、リトライ挙動は改善しません。"
+    },
+    {
+      "id": "pool-038",
+      "domain": 2,
+      "taskStatement": "2.3",
+      "context": "Marketing-content generation agent",
+      "stem": "A marketing-content agent is given all 20 tools available across the marketing organization's MCP servers — including tools for ad-spend reporting, competitor analysis, email deliverability, and social scheduling — even though its actual job is narrowly to draft blog post outlines from a content brief. The team observes it occasionally invokes ad-spend and competitor-analysis tools mid-draft for no clear reason, producing outlines cluttered with irrelevant data. What combination of fixes is most appropriate?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Set tool_choice: \"any\" so the agent is forced to call some tool every turn, which will make its tool usage more disciplined."
+        },
+        {
+          "key": "B",
+          "text": "Scope the agent's available tools down to only what drafting an outline actually requires, adding a narrow content-brief-lookup tool if that's the specific extra capability needed."
+        },
+        {
+          "key": "C",
+          "text": "Keep all 20 tools available but add a system-prompt instruction listing which tools are off-limits for this task."
+        },
+        {
+          "key": "D",
+          "text": "Set tool_choice: \"auto\" instead of the current forced setting, so the agent can decide more freely which of the 20 tools to use."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "An oversized, poorly scoped toolset increases decision complexity and is the documented cause of exactly this kind of unnecessary tool invocation; the fix is restricting tool distribution to what the role actually requires, adding only a narrow, purpose-specific tool for any genuine additional need. Forcing tool_choice: \"any\" changes whether a tool must be called on a turn, not which of the 20 tools gets selected, so it doesn't reduce irrelevant invocations and could make them more frequent. Keeping all 20 tools and layering on a prompt-based exclusion list is a probabilistic patch relying on the model consistently remembering and applying an unbounded list of restrictions, rather than the structural fix of not exposing the tools at all. Switching to tool_choice: \"auto\" from a forced setting doesn't address tool count or scope at all; the scenario as described doesn't even indicate tool_choice was forced.",
+      "explanationJa": "過大でスコープ設計の甘いツールセットは意思決定の複雑さを増し、まさにこの種の不要なツール呼び出しの文書化された原因です。修正策は、その役割が実際に必要とするものにツール配分を制限し、真に追加のニーズがある場合にのみ狭くスコープされた専用ツールを1つ追加することです。tool_choice: \"any\"を強制しても、あるターンでツールを呼ばなければならないかどうかが変わるだけで、20個のうちどれが選ばれるかは変わらないため、無関係な呼び出しを減らすことにはならず、むしろ頻度が増える可能性すらあります。20個すべてのツールを維持したままプロンプトベースの除外リストを重ねる方法は、無制限のリストの制約をモデルが一貫して記憶し適用し続けることに依存する確率的なパッチであり、そもそもツールを公開しないという構造的な修正ではありません。強制設定から tool_choice: \"auto\" に切り替えても、ツールの数やスコープには一切対処せず、そもそもこのシナリオではtool_choiceが強制されていたことすら示されていません。"
+    },
+    {
+      "id": "pool-039",
+      "domain": 2,
+      "taskStatement": "2.4",
+      "context": "Design-system documentation catalog",
+      "stem": "A frontend team maintains a large, frequently updated library of design-system component specs (colors, spacing, accessibility notes) that engineers need Claude Code to reference accurately while building UI. Currently, an engineer manually copy-pastes relevant spec excerpts into the chat before each task, which is error-prone and often stale. What is the most appropriate way to give Claude reliable, up-to-date access to this catalog?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Paste the entire design-system spec into the project's CLAUDE.md file, so it's always loaded automatically."
+        },
+        {
+          "key": "B",
+          "text": "Expose the design-system catalog as MCP resources, so Claude can look up the specific specs it needs directly from the source rather than relying on manually pasted excerpts."
+        },
+        {
+          "key": "C",
+          "text": "Ask engineers to keep a personal ~/.claude/CLAUDE.md with the specs they use most often."
+        },
+        {
+          "key": "D",
+          "text": "Convert the spec library into a skill that must be manually invoked with the relevant component name each time it's needed."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "MCP resources are specifically designed for exposing content catalogs like this so an agent can retrieve exactly what it needs directly from the current source of truth, which eliminates both the staleness and the manual copy-paste error risk described. Pasting the entire spec into CLAUDE.md bloats a file that's loaded on every task, including ones that don't touch the design system, and still requires manual updates whenever the underlying specs change, reintroducing staleness. A personal ~/.claude/CLAUDE.md is user-scoped and unshared, doesn't solve the team-wide staleness problem, and still relies on manual curation rather than pulling from the live source. Converting the catalog into a manually invoked skill still depends on the engineer remembering to invoke it and specify the right component, which doesn't fix the reliability problem the team is actually facing.",
+      "explanationJa": "MCP resourcesは、まさにこのようなコンテンツカタログを公開するために設計された仕組みであり、エージェントは現在の正式なソースから必要な仕様を直接取得できます。これにより、記述されている陳腐化の問題と手動コピー&ペーストによる誤りのリスクの両方を解消できます。仕様全体をCLAUDE.mdに貼り付ける方法は、デザインシステムに触れないタスクも含め毎回読み込まれるファイルを肥大化させ、元の仕様が変わるたびに手動更新が必要なままで、陳腐化の問題を再発させます。個人用の~/.claude/CLAUDE.mdはユーザースコープで共有されず、チーム全体の陳腐化問題を解決せず、依然として最新のソースから取得するのではなく手動でのキュレーションに依存します。カタログを手動で呼び出すスキルに変換しても、エンジニアがそれを呼び出し正しいコンポーネントを指定することを覚えている必要があり、チームが実際に直面している信頼性の問題は解決しません。"
+    },
+    {
+      "id": "pool-040",
+      "domain": 2,
+      "taskStatement": "2.5",
+      "context": "Legacy API-usage audit",
+      "stem": "An engineer asks Claude Code to find every place in a 600-file repository where a deprecated authenticate() function is still called, so each call site can be migrated to the new authenticateV2() function. Which built-in tool is most directly suited to this specific first step, and why?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Glob, because it efficiently locates files by name pattern across a large directory tree."
+        },
+        {
+          "key": "B",
+          "text": "Grep, because it searches file contents for the specific string 'authenticate(' across the repository and returns matching locations."
+        },
+        {
+          "key": "C",
+          "text": "Read, because loading each of the 600 files in full is the most thorough way to confirm every call site."
+        },
+        {
+          "key": "D",
+          "text": "Edit, because it can locate and replace the deprecated calls in a single pass."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Grep is the tool designed for content search — finding where a specific string or pattern like a function call appears across many files — which is exactly the task of locating every authenticate() call site. Glob finds files by name or path pattern, not by what's inside them, so it can't identify which files actually contain calls to the function. Reading all 600 files in full is a far more expensive way to search content than a targeted content search, and doesn't scale efficiently to a large repository when the actual need is a location lookup. Edit performs targeted modifications once a specific location is already known; it is not a search mechanism and cannot enumerate all the call sites needing migration in the first place.",
+      "explanationJa": "Grepは、関数呼び出しのような特定の文字列やパターンが多数のファイルにわたってどこに出現するかを検索する、コンテンツ検索のために設計されたツールであり、まさにauthenticate()のすべての呼び出し箇所を特定するというタスクに合致します。Globはファイルの中身ではなく名前やパスのパターンでファイルを見つけるものであり、どのファイルが実際にその関数呼び出しを含んでいるかは特定できません。600個のファイルすべてを丸ごと読み込む方法は、対象を絞ったコンテンツ検索よりもはるかにコストが高く、実際に必要なのは位置の特定であるにもかかわらず、大規模なリポジトリには効率的にスケールしません。Editは、すでに特定の位置が分かっている場合に対象を絞った修正を行うものであり、検索の仕組みではないため、そもそも移行が必要なすべての呼び出し箇所を列挙することはできません。"
+    },
+    {
+      "id": "pool-041",
+      "domain": 2,
+      "taskStatement": "2.1",
+      "context": "Expense-policy lookup agent",
+      "stem": "An expense-approval agent has two tools: lookup_policy, described as 'Looks up policy information,' and lookup_limits, described as 'Looks up limit information.' Both tools actually query the same underlying policy database, but lookup_policy returns full policy text while lookup_limits returns only numeric spending caps. Engineers observe the agent frequently calls lookup_policy when a user just asks 'what's my limit for meals,' retrieving and processing far more text than needed. What is the most effective fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Rewrite both descriptions to state precisely what each tool returns (full policy text vs. numeric caps only) and give an example query suited to each, so the model can match query intent to the right tool."
+        },
+        {
+          "key": "B",
+          "text": "Remove lookup_limits entirely, since lookup_policy's full text technically contains the same numeric information."
+        },
+        {
+          "key": "C",
+          "text": "Add a system-prompt rule stating 'always use lookup_limits for any question containing the word limit.'"
+        },
+        {
+          "key": "D",
+          "text": "Rename lookup_limits to lookup_limits_fast to signal it's the more efficient choice."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Precise, example-anchored descriptions that state exactly what each tool returns give the model the information it needs to match a simple numeric-limit question to the lighter-weight tool rather than defaulting to the more general one, which directly targets the described inefficiency. Removing lookup_limits eliminates the lightweight, purpose-built option entirely, forcing every limit lookup through the heavier full-text tool going forward — the opposite of the intended fix. A keyword-triggered system-prompt rule only catches queries containing the literal word 'limit' and doesn't generalize to differently worded questions with the same intent (e.g., 'how much can I spend on meals'), nor does it fix the underlying description ambiguity the model relies on for every query. Renaming the tool doesn't communicate what data it actually returns, so it doesn't reliably change selection behavior beyond a possible superficial bias toward the word 'fast.'",
+      "explanationJa": "各ツールが実際に何を返すかを正確に示し、例示クエリを添えた説明文にすることで、単純な数値上限の質問をより軽量なツールに一致させ、より汎用的なツールをデフォルトで選んでしまう事態を防げます。これは記述されている非効率さに直接対処します。lookup_limitsを削除すると、軽量で目的特化した選択肢が完全に失われ、以降すべての上限照会がより重い全文検索ツールを経由することになり、意図した修正とは逆の結果になります。キーワードで発火するシステムプロンプトのルールは、文字通り「limit」という語を含むクエリしか捉えられず、同じ意図でも異なる言い回しの質問（例：「食事にいくら使える？」）には一般化できず、モデルがあらゆるクエリで頼る説明文の曖昧さそのものも解消しません。ツール名を変更しても実際に返されるデータが何かは伝わらないため、「fast」という語による表面的な偏り以外に選択挙動を確実に変えることにはなりません。"
+    },
+    {
+      "id": "pool-042",
+      "domain": 2,
+      "taskStatement": "2.2",
+      "context": "Document-redaction agent",
+      "stem": "An MCP tool called redact_document returns {isError: true, message: 'Failed'} whenever the target document format is unsupported (e.g., a scanned image with no text layer), whenever the requested redaction rule references a field name that doesn't exist in that document type, and whenever the redaction service is temporarily out of capacity and queuing requests. An agent using the tool currently treats all three identically, sometimes abandoning a request during a brief capacity spike that would have succeeded moments later, and sometimes retrying an unsupported-format request indefinitely. What is the most effective fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Have the tool return structured error metadata distinguishing errorCategory (validation, business, transient), an isRetryable flag, and a specific description, so the agent can branch its behavior per failure type."
+        },
+        {
+          "key": "B",
+          "text": "Set a single, longer timeout on every redact_document call, so capacity spikes are more likely to resolve before the call gives up."
+        },
+        {
+          "key": "C",
+          "text": "Add a system-prompt instruction telling the agent to always retry exactly twice regardless of error type."
+        },
+        {
+          "key": "D",
+          "text": "Change only the tool's description to mention the three failure causes, without altering the response payload."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Structured error metadata that distinguishes errorCategory and marks whether a failure isRetryable gives the agent the specific information it needs to retry a transient capacity spike, avoid retrying an unsupported format that will never succeed no matter how many attempts, and treat a business/validation error (an unknown field name) differently again — a single undifferentiated 'Failed' response cannot support any of that branching. A longer timeout only addresses the transient-capacity case and does nothing to stop indefinite retries against a fundamentally unsupported document format. A fixed 'retry exactly twice' rule applies the same blunt policy regardless of whether retrying can possibly help, wasting attempts on unsupported-format failures while potentially still giving up too early on a longer capacity spike. Updating only the tool's description leaves the actual runtime response unchanged, so the agent's decision-making at call time doesn't improve.",
+      "explanationJa": "errorCategoryを区別し、失敗がisRetryableかどうかを示す構造化エラーメタデータは、一時的な容量逼迫はリトライし、何度試みても絶対に成功しない未対応形式のリトライを避け、ビジネス・バリデーションエラー（未知のフィールド名）をまた別に扱うために必要な具体的情報をエージェントに与えます。単一の未分化な「Failed」応答では、こうした分岐は一切実現できません。タイムアウトを長くするだけでは一時的な容量逼迫のケースにしか対処できず、根本的に未対応の文書形式に対する無限リトライを止めることはできません。「必ず2回リトライする」という固定ルールは、リトライが役立つかどうかにかかわらず同じ乱暴な方針を適用し、未対応形式の失敗に試行を浪費する一方で、より長い容量逼迫に対しては依然として早期に諦めてしまう可能性があります。ツールの説明文だけを更新しても、実際のランタイム応答は変わらないため、呼び出し時のエージェントの判断は改善しません。"
+    },
+    {
+      "id": "pool-043",
+      "domain": 3,
+      "taskStatement": "3.5",
+      "context": "Notification-batching design session",
+      "stem": "A developer asks Claude Code to add batching logic for outgoing push notifications, but hasn't yet decided the batching window length, whether a batch should flush early if it hits a size limit, or what should happen to a notification that's still pending when the app process shuts down. Rather than specifying all of this upfront, which approach is most likely to surface these considerations before implementation begins?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Ask Claude to implement the batching logic immediately using reasonable defaults, then review the code afterward to identify any decisions it made implicitly."
+        },
+        {
+          "key": "B",
+          "text": "Ask Claude to first interview the developer with clarifying questions about window length, early-flush behavior, and shutdown handling, before writing any code."
+        },
+        {
+          "key": "C",
+          "text": "Provide 2-3 concrete input/output examples of notifications going in and batches coming out, so Claude can infer the shutdown and flush behavior from the examples."
+        },
+        {
+          "key": "D",
+          "text": "Ask Claude to write a comprehensive test suite for the batching logic first, then implement code to satisfy the tests."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "The interview pattern is specifically suited to surfacing design considerations the developer hasn't yet anticipated in an underspecified domain, which is exactly this situation — window length, early-flush, and shutdown handling are all genuinely undecided, not just unstated. Implementing first with reasonable defaults and reviewing afterward is reactive, risking those defaults getting silently committed to and shipped rather than surfaced as explicit decisions the developer actually gets to make beforehand. Concrete input/output examples work well when a transformation is understood but described inconsistently in prose; they can't surface an undecided shutdown-handling policy, since there's no example to construct until that policy exists. Test-driven iteration is powerful once behavior is already defined, but here the flush and shutdown behavior itself hasn't been decided, so there's nothing concrete yet to write tests against.",
+      "explanationJa": "インタビュー・パターンは、仕様が未確定な領域で開発者がまだ想定していない設計上の考慮事項を表面化させるのに特に適しており、まさに今回の状況（ウィンドウ長・早期フラッシュ・シャットダウン処理のいずれも単に未記述なのではなく本当に未決定）に当てはまります。妥当なデフォルト値で先に実装し後からレビューする方法は事後対応であり、それらのデフォルトが、開発者が事前に下すべき明示的な決定として表面化されないまま黙って確定し出荷されてしまうリスクがあります。具体的な入出力例は、変換ロジックは理解されているが自然言語による説明が一貫していない場合には有効ですが、未決定のシャットダウン処理方針を表面化させることはできません。その方針自体が存在しない限り、例を作りようがないからです。テスト駆動の反復は挙動がすでに定義されている場合に強力ですが、ここではフラッシュとシャットダウンの挙動自体がまだ決まっていないため、テストを書く対象となる具体的なものがまだ存在しません。"
+    },
+    {
+      "id": "pool-044",
+      "domain": 3,
+      "taskStatement": "3.1",
+      "context": "Multi-service monorepo",
+      "stem": "A monorepo hosts three services (api, worker, admin-ui) that share a small set of company-wide conventions (commit message format, PR size limits) but each have very different, service-specific testing and build instructions. The team currently keeps everything in one root-level CLAUDE.md, which has grown to 400 lines and now takes noticeably longer for Claude to parse relevant instructions from on every task, regardless of which service is being worked on. What is the most effective restructuring?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Split the root CLAUDE.md into three equally-sized files, one per service, and delete the root file entirely."
+        },
+        {
+          "key": "B",
+          "text": "Keep the company-wide conventions in the root CLAUDE.md, and move each service's specific testing and build instructions into a CLAUDE.md within that service's own directory, which loads based on directory scope."
+        },
+        {
+          "key": "C",
+          "text": "Move the entire 400 lines into a single skill that must be manually invoked at the start of every session."
+        },
+        {
+          "key": "D",
+          "text": "Leave the structure as-is, since a single root file guarantees all instructions are always available regardless of which part of the repo is being edited."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "The CLAUDE.md hierarchy is designed for exactly this split: repo-wide conventions belong at the root scope where every task benefits from them, while service-specific instructions belong in each service's own directory-scoped CLAUDE.md, which loads only when work touches that directory — directly reducing the irrelevant content loaded on every task. Splitting into three files with no root file loses the genuinely shared, company-wide conventions that all three services need, forcing them to be duplicated three times or lost entirely. Converting the whole file into a manually invoked skill contradicts the goal of relevant conventions being applied automatically without the engineer remembering to invoke anything. Leaving the single 400-line root file as-is preserves the exact problem described — irrelevant, service-specific content loaded on every single task regardless of relevance.",
+      "explanationJa": "CLAUDE.mdの階層構造は、まさにこのような分割のために設計されています。リポジトリ全体の規約はすべてのタスクが恩恵を受けるルートスコープに置き、サービス固有の指示は該当ディレクトリでの作業時にのみ読み込まれる、各サービス自身のディレクトリスコープのCLAUDE.mdに置くことで、あらゆるタスクで読み込まれる無関係な内容を直接減らせます。ルートファイルを残さず3つのファイルに分割すると、3つのサービスすべてが必要とする本当に共有すべき全社的な規約が失われ、3回重複させるか完全に失うことになります。ファイル全体を手動で呼び出すスキルに変換することは、エンジニアが何かを呼び出すことを覚えていなくても関連する規約が自動的に適用されるという目標と矛盾します。400行のルートファイルを単一のまま残すことは、関連性にかかわらずあらゆるタスクで無関係なサービス固有の内容が読み込まれるという、まさに記述されている問題をそのまま維持することになります。"
+    },
+    {
+      "id": "pool-045",
+      "domain": 3,
+      "taskStatement": "3.2",
+      "context": "Personal git-cleanup helper",
+      "stem": "An engineer builds a small helper, invoked as /cleanup-branches, that lists and deletes their own already-merged local git branches. It's useful only to them, not to the rest of the team, and they don't want it appearing when teammates browse the repository's shared commands. Where should this be placed, and why?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "In the project's .claude/commands/ directory, since slash commands are meant to be discoverable within the project."
+        },
+        {
+          "key": "B",
+          "text": "In the user's personal ~/.claude/commands/ directory, since it's a personal utility not meant to be shared with teammates via the repository."
+        },
+        {
+          "key": "C",
+          "text": "In a project .claude/rules/ file with a glob pattern matching all files, so it applies everywhere the engineer works."
+        },
+        {
+          "key": "D",
+          "text": "In the project's CLAUDE.md, as a documented manual procedure for the engineer to follow themselves."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Personal slash commands meant for one individual's own use, and not intended for teammates, belong in the user-scoped ~/.claude/commands/ directory, which is exactly the distinction between personal and project-shared commands. Placing it in the project's .claude/commands/ would make it version-controlled and visible to every teammate who clones the repo, which contradicts the stated goal of it not appearing for others. .claude/rules/ is for automatically-loaded, path-scoped conventions and context, not for defining an invokable command — it's the wrong mechanism entirely for a command-style action like listing and deleting branches. Documenting it as a manual procedure in CLAUDE.md doesn't give the engineer an invokable command at all; it would just be prose instructions with no automation behind them.",
+      "explanationJa": "個人だけが使うことを意図し、チームメイトへの共有を意図していない個人用スラッシュコマンドは、まさに個人用コマンドとプロジェクト共有コマンドを区別する、ユーザースコープの~/.claude/commands/ディレクトリに置くべきです。プロジェクトの.claude/commands/に置くと、バージョン管理されリポジトリをクローンした全メンバーに見えるようになり、他者に表示させたくないという目標と矛盾します。.claude/rules/は自動的に読み込まれるパススコープの規約や文脈のためのものであり、呼び出し可能なコマンドを定義するためのものではありません。ブランチの一覧表示・削除のようなコマンド的な操作にはまったく適さない仕組みです。CLAUDE.mdに手順として文書化しても、エンジニアに呼び出し可能なコマンドを与えることには一切ならず、自動化を伴わない単なる説明文になってしまいます。"
+    },
+    {
+      "id": "pool-046",
+      "domain": 3,
+      "taskStatement": "3.3",
+      "context": "Frontend/backend split repository",
+      "stem": "A repository has a frontend/ directory using React with strict prop-types conventions, and a backend/ directory using Python with strict type-hint conventions. Both conventions are unrelated to each other, and both should apply automatically only within their respective directory, without an engineer needing to remember to invoke anything. What is the best way to configure this?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Two .claude/rules/ files, each with YAML frontmatter scoping it to its respective glob pattern (e.g., \"frontend/**/*.tsx\" and \"backend/**/*.py\")."
+        },
+        {
+          "key": "B",
+          "text": "A single .claude/rules/ file covering both conventions, with no path scoping, relying on Claude to apply the relevant half based on file extension."
+        },
+        {
+          "key": "C",
+          "text": "Two separate skills, one for each convention, that engineers must remember to invoke before editing files in the corresponding directory."
+        },
+        {
+          "key": "D",
+          "text": "A single root CLAUDE.md listing both conventions together under separate headings."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Path-scoped .claude/rules/ files with glob-pattern frontmatter load automatically only when a matching file is being worked on, which is exactly suited to two unrelated, directory-specific conventions that should apply without manual invocation and without leaking into the other directory's context. A single unscoped rules file relies on the model correctly inferring which half is relevant from file extension alone, rather than deterministic, automatic scoping, and unnecessarily exposes each convention to work happening in the other directory. Requiring manual skill invocation contradicts the stated goal of the conventions applying automatically without the engineer remembering anything. A single root CLAUDE.md with both conventions under headings has the same problem as the unscoped rules file — it's always loaded in full regardless of which directory is actually being edited, adding irrelevant context to unrelated work.",
+      "explanationJa": "globパターンをフロントマターに持つパススコープの.claude/rules/ファイルは、該当するファイルが編集対象になっているときにのみ自動的に読み込まれ、手動呼び出しなしに、かつ他方のディレクトリの文脈に漏れ出すこともなく適用されるべき、無関係な2つのディレクトリ固有規約にまさに適しています。スコープされていない単一のルールファイルは、拡張子だけからどちらの半分が関連するかをモデルが正しく推測することに依存しており、決定的で自動的なスコープ設定にはならず、各規約が不必要にもう一方のディレクトリでの作業にまで及んでしまいます。手動でのスキル呼び出しを必須とすることは、エンジニアが何も覚えていなくても規約が自動的に適用されるという目標と矛盾します。両方の規約を見出し付きで載せた単一のルートCLAUDE.mdも、スコープされていないルールファイルと同じ問題を抱えます。実際にどちらのディレクトリが編集されているかにかかわらず常に全体が読み込まれ、無関係な作業に余計な文脈を加えてしまいます。"
+    },
+    {
+      "id": "pool-047",
+      "domain": 3,
+      "taskStatement": "3.4",
+      "context": "Database index tuning task",
+      "stem": "A developer notices a single, specific query is slow and asks Claude Code to add an index to the one column it filters on — the query, the table, and the column are all already identified, and the change is a single, well-understood migration file. Should this task use plan mode or direct execution, and why?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Plan mode, because any change to a database schema is inherently high-risk regardless of scope."
+        },
+        {
+          "key": "B",
+          "text": "Direct execution, because the task is simple, well-scoped, with a single clearly identified change and no competing valid approaches to weigh."
+        },
+        {
+          "key": "C",
+          "text": "Plan mode, because Claude should always explore the full schema before making any change to it."
+        },
+        {
+          "key": "D",
+          "text": "Neither — the developer should write the migration by hand, since Claude Code should not be used for database changes."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Direct execution suits tasks that are simple and well-scoped with a single clear change and no meaningful architectural tradeoff to weigh, which describes this task exactly — the query, table, column, and fix are already fully identified. Treating every schema change as automatically high-risk ignores that the deciding factor is architectural complexity and the number of valid approaches, not the mere fact that a database is involved; a single well-understood index addition doesn't carry the multi-approach ambiguity plan mode exists to resolve. Requiring full schema exploration for every task, however small, adds unnecessary overhead when the relevant column and query are already known with certainty. Refusing to use Claude Code for database changes at all is an overreaction that discards a genuinely appropriate use case for direct execution.",
+      "explanationJa": "直接実行は、単純で範囲が明確、単一の明確な変更であり、比較検討すべきアーキテクチャ上のトレードオフがないタスクに適しており、これはまさにこのタスク（クエリ・テーブル・カラム・修正内容がすべてすでに完全に特定されている）に当てはまります。あらゆるスキーマ変更を自動的に高リスクとみなす考え方は、判断基準が単にデータベースが関わっているという事実ではなく、アーキテクチャ上の複雑さと有効なアプローチの数であることを無視しています。十分に理解された単一のインデックス追加には、プランモードが解決しようとする複数アプローチの曖昧さはありません。どれほど小さなタスクであっても常にスキーマ全体の探索を要求することは、対象となるカラムとクエリがすでに確実に判明している場合に不要なオーバーヘッドを加えます。データベース変更にClaude Codeを一切使わないという判断は過剰反応であり、直接実行が本来適した用途を放棄することになります。"
+    },
+    {
+      "id": "pool-048",
+      "domain": 3,
+      "taskStatement": "3.6",
+      "context": "Automated PR summary bot",
+      "stem": "A team wants a CI job to run Claude Code non-interactively on every pull request to produce a structured summary (files changed, risk level, suggested reviewers) that a downstream Slack bot parses and posts. What two Claude Code invocation options are most directly needed to make this reliable within a CI script?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "-p/--print for non-interactive execution, combined with --output-format json (and a --json-schema, if the exact structure must be enforced) so the downstream bot can parse the output reliably."
+        },
+        {
+          "key": "B",
+          "text": "--resume to continue a prior session, combined with a higher max_tokens setting to ensure the summary is long enough."
+        },
+        {
+          "key": "C",
+          "text": "fork_session to isolate each PR's run, combined with a system prompt asking the model to 'format your response as JSON.'"
+        },
+        {
+          "key": "D",
+          "text": "context: fork in a SKILL.md file, combined with -p for non-interactive execution."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "-p/--print is the documented flag for non-interactive execution suited to CI, and pairing it with --output-format json (plus a --json-schema when structure must be strictly enforced) gives the downstream Slack bot a reliably parseable output, rather than free-text the bot would have to interpret heuristically. --resume implies continuing a specific prior conversation, which doesn't apply to independent, per-PR CI runs that each need to start fresh, and a larger max_tokens setting has no bearing on whether the output is structured or parseable. fork_session is for branching an existing interactive session, not for isolating independent CI invocations, and asking the model in a system prompt to 'format as JSON' is a probabilistic instruction without the enforced schema guarantee --json-schema provides. context: fork is a SKILL.md-level mechanism for isolating a skill's execution from the main conversation, not a substitute for the actual non-interactive and structured-output flags this CI use case needs.",
+      "explanationJa": "-p/--printは、CIに適した非対話実行のための文書化されたフラグであり、これを--output-format json（構造を厳密に強制する必要がある場合は--json-schemaも併用）と組み合わせることで、下流のSlackボットがヒューリスティックに解釈しなければならない自由記述テキストではなく、確実に解析可能な出力を得られます。--resumeは特定の以前の会話を継続することを意味し、それぞれが最初から始まる必要がある独立したPRごとのCI実行には当てはまりません。max_tokensを大きく設定しても、出力が構造化され解析可能かどうかには関係ありません。fork_sessionは既存の対話セッションを分岐させるためのものであり、独立したCI呼び出しを分離するためのものではなく、システムプロンプトでモデルに「JSON形式で出力して」と依頼することは、--json-schemaが提供するような強制されたスキーマ保証のない確率的な指示にすぎません。context: forkはSKILL.mdレベルの仕組みであり、スキルの実行をメイン会話から分離するためのものであって、このCIユースケースが必要とする実際の非対話・構造化出力フラグの代わりにはなりません。"
+    },
+    {
+      "id": "pool-049",
+      "domain": 4,
+      "taskStatement": "4.1",
+      "context": "Automated security-finding triage",
+      "stem": "An automated static-analysis triage prompt currently says 'flag only issues you're confident are real security vulnerabilities.' The team finds it flags many low-severity, defense-in-depth style suggestions as if they were critical, while missing a real SQL injection pattern in one file. What prompt change would most directly reduce this kind of misclassification?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Replace the confidence-based instruction with explicit categorical criteria naming which vulnerability classes must always be flagged (e.g., unsanitized query construction, hardcoded credentials) versus which are out of scope (e.g., generic hardening suggestions), with a concrete example of each."
+        },
+        {
+          "key": "B",
+          "text": "Instruct the model to rate its confidence numerically from 1-100 for each finding, and only report findings above 85."
+        },
+        {
+          "key": "C",
+          "text": "Add the word 'critical' before 'security vulnerabilities' in the existing instruction to raise the bar."
+        },
+        {
+          "key": "D",
+          "text": "Ask the model to double-check each finding by re-reading the relevant code a second time before reporting it."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Explicit categorical criteria with concrete examples give the model an actual decision boundary — which specific vulnerability classes are in vs. out of scope — rather than a vague, uncalibrated notion of 'confidence' to filter by, directly addressing why defense-in-depth suggestions and a real SQL injection pattern are both being misclassified. A numeric 1-100 self-reported confidence score reintroduces exactly the unreliable proxy the guide warns against, since the model has no well-calibrated basis for such precise self-scoring. Adding the word 'critical' to the same vague, confidence-based phrasing is the identical failure mode restated more forcefully, not a structural fix. Asking the model to re-read code a second time may help with attention but does nothing to clarify what should or shouldn't be reported in the first place, which is the actual source of the misclassification.",
+      "explanationJa": "具体例を伴う明示的な分類基準は、「confidence」という曖昧で較正されていない概念でフィルタリングするのではなく、どの脆弱性クラスが対象内で対象外かという実際の判断境界をモデルに与え、防御多層化の提案と実際のSQLインジェクションパターンの両方が誤分類されている理由に直接対処します。1〜100の数値による自己申告の確信度スコアは、まさにガイドが警告している信頼性の低い代理指標を再導入するものであり、モデルにはそれほど精密な自己採点を行うための適切に較正された根拠がありません。既存の曖昧で確信度ベースの文言に「critical」という語を加えることは、同じ失敗パターンをより強い表現で繰り返しているだけで、構造的な修正にはなりません。コードをもう一度読み直すよう求めることは注意力の向上には役立つかもしれませんが、そもそも何を報告すべきか・すべきでないかを明確にすることにはならず、それこそが誤分類の本当の原因です。"
+    },
+    {
+      "id": "pool-050",
+      "domain": 4,
+      "taskStatement": "4.2",
+      "context": "Job-application screening agent",
+      "stem": "A resume-screening agent must tag each application as either 'Meets Requirements' or 'Does Not Meet Requirements' based on a job posting's stated qualifications. Many applications plausibly meet the spirit of the requirements through equivalent but differently worded experience (e.g., 'led a team of 6' instead of the posting's 'management experience'), and the agent's decisions on these are inconsistent despite a detailed prose description of the requirements. What is the most effective next step?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Add few-shot examples of genuinely ambiguous applications, each showing the tagging decision made and a brief rationale for why the equivalent-but-differently-worded experience did or didn't satisfy the requirement."
+        },
+        {
+          "key": "B",
+          "text": "Add a third tag, 'Possibly Meets Requirements,' for the agent to use whenever wording doesn't exactly match the posting."
+        },
+        {
+          "key": "C",
+          "text": "Expand the prose requirements description with additional synonyms for common qualification phrases."
+        },
+        {
+          "key": "D",
+          "text": "Instruct the agent to only tag 'Meets Requirements' when the application's wording exactly matches the posting's phrasing."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Few-shot examples that show the reasoning behind a tagging decision on genuinely ambiguous, differently-worded cases let the model generalize the underlying judgment — recognizing equivalent experience — to new applications it hasn't seen before, rather than only matching cases explicitly listed. Adding a third 'Possibly' tag avoids making the actual binary decision the downstream hiring workflow needs, shifting the ambiguity problem rather than resolving it. Expanding the prose description with more synonyms has effectively already been tried in spirit, since a detailed description already exists and inconsistency persists — the problem isn't missing vocabulary, it's a lack of demonstrated judgment on edge cases. Requiring exact wording matches would systematically reject genuinely qualified candidates whose experience is described differently than the posting, which is precisely the failure mode the scenario describes wanting to avoid.",
+      "explanationJa": "本当に曖昧で言い回しの異なるケースにおけるタグ付けの判断理由を示すfew-shot例は、明示的に挙げられたケースだけを模倣するのではなく、同等の経験を認識するという根底の判断を、まだ見たことのない新しい応募に一般化することを可能にします。3つ目の「Possibly」タグを追加する案は、採用ワークフローが実際に必要とする二値の判断を回避し、曖昧さの問題を解決するのではなく先送りするだけです。プロセ説明に同義語を追加する案は実質的にすでに試されているに等しく、詳細な説明がすでに存在するにもかかわらず不整合が続いています。問題は語彙の不足ではなく、境界事例に対する判断の実例が示されていないことです。文言の完全一致を要求すると、求人票とは異なる言い回しで経験を記述している真に適格な候補者を体系的に除外してしまい、まさにこのシナリオが避けたいとしている失敗パターンそのものです。"
+    },
+    {
+      "id": "pool-051",
+      "domain": 4,
+      "taskStatement": "4.3",
+      "context": "Meeting-notes action-item extractor",
+      "stem": "A tool extracts action items from meeting transcripts using free-text prompting, asking the model to 'list each action item, owner, and due date in a consistent format.' Downstream automation that parses this text to create tasks fails roughly 15% of the time because the model's formatting subtly varies between calls — sometimes bullet points, sometimes numbered lists, sometimes inconsistent date formats. What is the most direct fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Add more detailed prose instructions describing the exact desired format, with several sentences of formatting guidance."
+        },
+        {
+          "key": "B",
+          "text": "Switch to tool_use with a JSON schema defining the exact structure (owner, due_date, description as typed fields) and force the model to call it, guaranteeing syntactically consistent, machine-parseable output."
+        },
+        {
+          "key": "C",
+          "text": "Lower the temperature setting to make output formatting more consistent between calls."
+        },
+        {
+          "key": "D",
+          "text": "Keep free-text output, but add a post-processing regex step designed to normalize the most common formatting variations."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Structured output via tool_use with a defined JSON schema guarantees syntactically valid, consistently structured output by construction, which directly eliminates the format-parsing failures caused by free-text variation between calls — this is exactly the problem tool_use with schemas is designed to solve. More detailed prose instructions still rely on the model consistently following formatting guidance in natural language across every call, the same class of unreliable compliance causing the current 15% failure rate. Lowering temperature reduces some output variability but provides no structural guarantee of format consistency, unlike an enforced schema. A post-processing regex layer is a brittle workaround built to chase an open-ended set of formatting variations, rather than eliminating the variation at its source by constraining the output format directly.",
+      "explanationJa": "定義済みのJSONスキーマを伴うtool_useによる構造化出力は、構文的に有効で一貫した構造を持つ出力を構造上保証し、呼び出しごとの自由記述テキストのばらつきによって生じる書式解析の失敗を直接解消します。これはまさにスキーマ付きtool_useが解決するために設計された問題です。より詳細な文章による指示は、依然としてモデルが毎回の呼び出しで自然言語による書式ガイダンスに一貫して従うことに依存しており、現在の15%の失敗率を引き起こしているのと同じ種類の不確実なコンプライアンスです。temperatureを下げると出力のばらつきはある程度減りますが、強制されたスキーマとは異なり書式の一貫性を構造的に保証するものではありません。後処理の正規表現層は、際限のない書式のばらつきを追いかけるために作られた脆い回避策であり、出力形式を直接制約することでばらつきを発生源で排除するものではありません。"
+    },
+    {
+      "id": "pool-052",
+      "domain": 4,
+      "taskStatement": "4.4",
+      "context": "Resume-parsing extraction pipeline",
+      "stem": "A resume-parsing pipeline extracts candidate data against a schema and retries with validation-error feedback when a check fails. Logs show two failure categories: about 70% are cases where a phone number was returned without the expected country-code prefix format, and 30% are cases where a required 'current_employer' field is empty because the resume genuinely belongs to a recent graduate with no employment history yet. What change would most improve both reliability and efficiency?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Keep retry-with-error-feedback for the phone-format failures, but make current_employer nullable and stop retrying when the field is empty because the information is genuinely absent rather than malformed."
+        },
+        {
+          "key": "B",
+          "text": "Increase the retry limit uniformly for all failures, since more attempts generally improve extraction accuracy."
+        },
+        {
+          "key": "C",
+          "text": "Remove current_employer from the schema entirely, since a meaningful share of resumes don't have this data."
+        },
+        {
+          "key": "D",
+          "text": "Apply the identical retry-with-error-feedback strategy to both failure categories, for pipeline consistency."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "Retry-with-error-feedback works when the model can correct a genuine formatting mistake given specific feedback, which fits the phone-number case, but is ineffective when information is genuinely absent from the source document — no retry will produce an employer that was never listed because the candidate has none; making the field nullable prevents forced fabrication just to satisfy a required field. Raising the retry limit uniformly wastes additional attempts on the recent-graduate case, which can never succeed regardless of attempt count. Removing the field entirely discards a legitimately useful value for the majority of candidates who do have current employment. Applying identical handling to both categories ignores that they need fundamentally different treatment: retry-and-correct for genuine format errors, and nullable-and-accept for information that simply isn't present.",
+      "explanationJa": "エラーフィードバックを伴うリトライは、モデルが具体的なフィードバックを受けて本物の書式ミスを修正できる場合に有効であり、電話番号のケースには当てはまりますが、情報がそもそも元の文書に存在しない場合には効果がありません。候補者に勤務先がない以上、何度リトライしても一度も記載されたことのない勤務先が生成されることはありません。フィールドをnullableにすることで、必須フィールドを満たすためだけの捏造を防げます。リトライ上限を一律に引き上げても、試行回数にかかわらず絶対に成功しない新卒者のケースに追加の試行を浪費するだけです。フィールドを完全に削除する案は、実際に現職を持つ大多数の候補者にとって有用な値を失わせます。両カテゴリに同一の扱いを適用する案は、本物の書式エラーには再試行して修正、単に存在しない情報にはnull許容として受け入れるという、本質的に異なる扱いが必要であることを無視しています。"
+    },
+    {
+      "id": "pool-053",
+      "domain": 4,
+      "taskStatement": "4.5",
+      "context": "Bulk document translation job",
+      "stem": "A localization team submits 3,000 support-article translation jobs to the Message Batches API in a single batch, each identified with a custom_id matching the article's internal ID. When results come back, engineers need to correctly match each translated output to its original source article and internal metadata (author, publish date, category) stored in a separate database. What is the correct way to perform this matching?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Match results to source articles by their position in the batch results list, assuming order is preserved from submission to completion."
+        },
+        {
+          "key": "B",
+          "text": "Match results to source articles using the custom_id returned with each result, looking up the corresponding internal metadata by that same ID in the database."
+        },
+        {
+          "key": "C",
+          "text": "Re-submit each translated result back through the synchronous API for a second, non-batch call to reconfirm which article it belongs to."
+        },
+        {
+          "key": "D",
+          "text": "Match results by comparing the translated text's content similarity to each source article's original text."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "custom_id is specifically designed for correlating batch results back to their originating requests, and since it was set to match each article's internal ID at submission time, using it to look up the corresponding metadata in the database is the direct, reliable correlation mechanism the Batches API provides. Relying on result order assumes an ordering guarantee the Batches API does not make, since batch processing and completion order aren't guaranteed to mirror submission order. Re-submitting each result through the synchronous API for reconfirmation adds unnecessary cost and latency for information the custom_id already provides directly and reliably. Matching by content similarity is an unreliable, computationally wasteful heuristic when a purpose-built, exact identifier (custom_id) is already available and was specifically designed for this correlation task.",
+      "explanationJa": "custom_idはまさにバッチ結果を元のリクエストに紐づけるために設計されており、送信時に各記事の内部IDと一致するよう設定されていたため、それを使ってデータベース内の対応するメタデータを検索することが、Batches APIが提供する直接的で信頼できる紐づけ方法です。結果の順序に依存する方法は、Batches APIが保証していない順序保証を前提としています。バッチ処理と完了の順序が送信順序を反映する保証はありません。各結果を同期APIに再送して再確認する方法は、custom_idがすでに直接かつ確実に提供している情報のために不要なコストとレイテンシを追加します。コンテンツの類似度による照合は、この紐づけタスクのために特別に設計された正確な識別子（custom_id）がすでに利用可能であるにもかかわらず、信頼性が低く計算コストの高いヒューリスティックです。"
+    },
+    {
+      "id": "pool-054",
+      "domain": 4,
+      "taskStatement": "4.6",
+      "context": "Large refactor multi-pass review",
+      "stem": "A large refactor touches 45 files across three subsystems. The team runs a review pass on each file individually, catching many localized issues, but a bug slips through where a function's return type was changed in one file without updating three other files that assumed the old type — none of the per-file reviews caught it because each file, viewed alone, looked internally consistent. What should the review process add to catch this class of issue?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Increase the number of independent reviewers per file from one to three, to triple-check each file in isolation."
+        },
+        {
+          "key": "B",
+          "text": "Add a separate cross-file integration review pass, specifically checking callers and dependents of any changed public interface across the whole 45-file change set, in addition to the per-file passes."
+        },
+        {
+          "key": "C",
+          "text": "Replace all per-file reviews with a single review of the full 45-file diff read start to end in one pass."
+        },
+        {
+          "key": "D",
+          "text": "Re-run the same per-file review a second time on each file, since a second look often catches what the first missed."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "A dedicated cross-file integration pass that specifically traces callers and dependents of changed interfaces directly targets the class of bug that per-file review structurally cannot catch, since each file was internally consistent on its own — the inconsistency only exists across files. Tripling the number of per-file reviewers still evaluates each file in isolation and would not surface an issue that only becomes visible when comparing a changed interface against its callers elsewhere. Replacing per-file reviews with a single full-diff read in one pass risks losing the depth of per-file scrutiny that caught the many localized issues already found, without a documented mechanism for reliably tracing cross-file dependencies either. Simply repeating the identical per-file review a second time doesn't introduce the missing cross-file perspective; it's the same blind spot applied twice.",
+      "explanationJa": "変更されたインターフェースの呼び出し元と依存先を特に追跡する専用のクロスファイル統合レビューパスは、ファイル単位のレビューが構造的に捉えられない種類のバグに直接対処します。各ファイルはそれ単体では内部的に一貫しており、不整合はファイルをまたいでのみ存在するからです。ファイル単位のレビュー担当者を3倍に増やしても、依然として各ファイルを孤立して評価するため、変更されたインターフェースを他所の呼び出し元と比較して初めて見えてくる問題は表面化しません。ファイル単位のレビューを、45ファイル全体の差分を一気に通読する単一のレビューに置き換えることは、すでに発見された多くの局所的な問題を捉えていたファイル単位の綿密さの深さを失うリスクがあり、しかもファイル横断的な依存関係を確実に追跡する文書化された仕組みも備えていません。同一のファイル単位レビューを単純にもう一度繰り返しても、欠けているファイル横断的な視点は導入されず、同じ盲点が二度適用されるだけです。"
+    },
+    {
+      "id": "pool-055",
+      "domain": 5,
+      "taskStatement": "5.1",
+      "context": "Technical support escalation chat",
+      "stem": "A technical-support chat runs for over an hour across many back-and-forth troubleshooting steps. Partway through, the conversation layer summarizes the earlier portion to save tokens. Near the end, the agent recommends a fix the customer says they already tried and explicitly ruled out 40 minutes earlier — a detail compressed into the vague summary line 'customer tried some troubleshooting steps.' What structural change would most directly prevent this class of error?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Instruct the summarization step to 'be thorough and preserve important details' as part of its prompt."
+        },
+        {
+          "key": "B",
+          "text": "Maintain a persistent, structured 'troubleshooting steps attempted' list that records each specific step and its outcome outside the summarized narrative, included in every subsequent prompt regardless of how the rest of the conversation is compressed."
+        },
+        {
+          "key": "C",
+          "text": "Increase the token budget allocated to conversation summaries across the board."
+        },
+        {
+          "key": "D",
+          "text": "Disable summarization for this conversation only once it exceeds 30 minutes in length."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Progressive summarization risks condensing specific attempted steps and their outcomes into vague prose exactly like 'customer tried some troubleshooting steps,' which is what caused the recommendation of an already-ruled-out fix; a persistent structured list sidesteps that lossy compression entirely for the specific facts that matter most to avoiding repeated suggestions. Instructing the summarizer to 'be thorough' still relies on a probabilistic generation step reliably preserving every specific detail every time, the same unreliable compliance mechanism that caused the original loss. A larger summary token budget only makes the same prose-based compression somewhat less lossy, without guaranteeing any specific step survives. Disabling summarization only after 30 minutes still allows the same lossy compression to occur up to that threshold, and doesn't scale to conversations that grow long from the start.",
+      "explanationJa": "段階的な要約には、試みた具体的な手順とその結果を「customer tried some troubleshooting steps」のような曖昧な文章に圧縮してしまうリスクがあり、これがまさにすでに除外済みの解決策を再度勧めてしまった原因です。永続的な構造化リストは、繰り返しの提案を避ける上で最も重要な具体的事実について、この情報損失を伴う圧縮を完全に回避します。要約担当に「丁寧に、重要な詳細を保持して」と指示しても、依然として確率的な生成処理が毎回すべての具体的な詳細を確実に保持することに依存しており、これはまさに今回の情報損失を引き起こしたのと同じ不確実なコンプライアンス機構です。要約のトークン予算を増やしても、同じ文章ベースの圧縮による情報損失がやや軽減されるだけで、特定の手順が必ず残る保証はありません。30分を超えてから要約を無効化しても、その閾値に達するまでは同じ情報損失を伴う圧縮が起こり続け、最初から長くなる会話には対応できません。"
+    },
+    {
+      "id": "pool-056",
+      "domain": 5,
+      "taskStatement": "5.2",
+      "context": "Account-cancellation retention chat",
+      "stem": "A customer tells a support agent, in a calm and measured tone, 'I'd like to cancel my subscription — it's just not worth it for me anymore.' Written policy allows standard cancellation without escalation, and separately does not authorize agents to offer discretionary retention discounts. The agent, trained to also weigh the customer's apparent sentiment, judges the tone as 'not particularly upset' and decides on its own to offer an unauthorized 20%-off discount to try to retain the customer, reasoning that a calm customer is more likely to accept a modest incentive. What does the exam guide's guidance on escalation and ambiguity suggest about this reasoning?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "The reasoning is sound; a calm tone is a reliable signal that a modest, agent-initiated incentive is appropriate and low-risk."
+        },
+        {
+          "key": "B",
+          "text": "Perceived sentiment is an unreliable proxy for the actual decision that matters — whether policy authorizes an action — and offering a discretionary discount the agent has no authority to grant is exactly the kind of unauthorized, ungoverned exception that should instead be escalated or simply not offered, regardless of tone."
+        },
+        {
+          "key": "C",
+          "text": "The agent should have refused to process the cancellation at all until the customer explicitly confirmed they did not want a discount."
+        },
+        {
+          "key": "D",
+          "text": "The agent's tone assessment was the correct signal to use, but it should have offered a larger discount to be more persuasive."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Perceived sentiment is documented as an unreliable proxy for the decision that actually matters, and here the substantive issue is authority, not emotional read: the agent granted a discretionary discount policy does not authorize it to offer, which is an ungoverned exception regardless of how calm the customer sounded — the correct path is to either escalate the request for a retention offer to someone with the authority to approve it, or proceed with standard cancellation without inventing an unauthorized incentive. Treating the calm tone as validating the decision repeats the same unreliable-proxy error the guide warns against — tone doesn't establish policy authority. Refusing to process the cancellation entirely introduces an obstacle the customer never asked for and isn't required by the described policy, which explicitly permits standard cancellation without escalation. Endorsing the tone-based reasoning and merely suggesting a larger discount compounds the original problem instead of addressing it, since the core issue is the unauthorized exception itself, not its size.",
+      "explanationJa": "顧客の感情の読み取りは、実際に重要な判断の代理指標としては信頼性が低いことが文書化されており、ここで本質的な問題は感情の読み取りではなく権限の問題です。エージェントは、ポリシーが認めていない裁量的な割引を許可しており、これは顧客がどれほど落ち着いた口調であったかにかかわらず、統制されていない例外にあたります。正しい対応は、リテンションオファーの承認権限を持つ人物へエスカレーションするか、独自の未承認インセンティブを作り出さずに標準的な解約処理を進めることです。落ち着いた口調をその判断の裏付けとして扱うことは、ガイドが警告しているのと同じ、信頼性の低い代理指標に基づく誤りを繰り返しています。口調はポリシー上の権限を裏付けるものではありません。解約処理そのものを拒否する対応は、顧客が一度も求めていない障害を追加するものであり、明示的にエスカレーションなしの標準解約を認めている記述されたポリシー上も不要です。口調に基づく判断を肯定した上で単に割引額を大きくすることを提案する対応は、問題の本質（未承認の例外そのもの）ではなくその規模にすり替えており、元の問題を悪化させます。"
+    },
+    {
+      "id": "pool-057",
+      "domain": 5,
+      "taskStatement": "5.3",
+      "context": "Multi-agent claims-processing pipeline",
+      "stem": "In a multi-agent claims-processing pipeline, a document-retrieval subagent calls an external records API that occasionally returns a 503 due to brief upstream maintenance windows lasting under a minute. The subagent's current behavior is to immediately report a failure to the coordinator on any non-200 response, triggering the coordinator to escalate the entire claim to a human for manual document retrieval — even though the API is typically available again within seconds. What is the most effective fix?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Have the coordinator escalate to a human immediately on any subagent failure, since consistent, immediate escalation is simpler to reason about than conditional logic."
+        },
+        {
+          "key": "B",
+          "text": "Have the subagent attempt local recovery first — a small number of retries with backoff for transient failures like a 503 — and only report a structured failure to the coordinator (with failure type and what was attempted) if local recovery is exhausted, reserving escalation for genuine, unrecoverable failures."
+        },
+        {
+          "key": "C",
+          "text": "Remove error reporting from the subagent entirely, and have it silently return an empty result on any failure so the pipeline can continue without interruption."
+        },
+        {
+          "key": "D",
+          "text": "Have the subagent escalate directly to the human reviewer itself, bypassing the coordinator, whenever it encounters a 503."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Attempting local recovery for genuinely transient failures before escalating is the documented pattern: a brief 503 during a maintenance window is exactly the kind of failure a short retry-with-backoff resolves without human involvement, and reserving structured, informative failure reports for the coordinator for cases where local recovery is actually exhausted avoids both wasted escalations and lost context when escalation is genuinely needed. Immediate escalation on every failure, while simple, produces exactly the costly and unnecessary human involvement described, treating a self-resolving transient issue the same as a genuinely unrecoverable one. Silently returning an empty result is the 'silently suppressing errors' anti-pattern, hiding a real (if often self-resolving) failure from the coordinator entirely rather than handling it appropriately. Having the subagent escalate directly to a human bypasses the coordinator, reintroducing a hub-and-spoke violation that removes the coordinator's visibility into and control over the escalation.",
+      "explanationJa": "エスカレーションの前に真に一時的な障害についてローカルでの復旧を試みることは文書化されたパターンです。メンテナンス期間中の短い503は、まさに短いバックオフ付きリトライで人間の介入なしに解決できる種類の障害であり、ローカルでの復旧が実際に尽きた場合にのみコーディネーターへ構造化された有益な失敗報告を送ることで、無駄なエスカレーションと、本当にエスカレーションが必要な場合の文脈喪失の両方を防げます。すべての失敗に対して即座にエスカレーションする方法は単純ではありますが、まさに記述されているようなコストの高い不要な人間の介入を生み出し、自己解決する一時的な問題を真に回復不能な問題と同じように扱ってしまいます。空の結果を黙って返す方法は「エラーを黙って抑制する」というアンチパターンであり、実際には（多くの場合自己解決する）本物の障害を適切に処理する代わりにコーディネーターから完全に隠してしまいます。サブエージェントがコーディネーターを迂回して人間へ直接エスカレーションする方法は、コーディネーターの可視性と制御を失わせるハブアンドスポーク違反を再発させます。"
+    },
+    {
+      "id": "pool-058",
+      "domain": 5,
+      "taskStatement": "5.4",
+      "context": "Legacy monolith exploration session",
+      "stem": "An engineer has been using Claude Code in a single session for over two hours, exploring a legacy monolith to map out how payment processing flows across a dozen modules. The engineer notices the conversation has become sluggish, and Claude has started re-reading files it already examined earlier because it no longer clearly recalls having done so. The engineer wants to keep working in essentially the same line of investigation without losing the findings gathered so far. What is the most appropriate next step?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Run /compact to condense the conversation history, preserving key findings and decisions while discarding redundant raw exploration detail, then continue in the same session."
+        },
+        {
+          "key": "B",
+          "text": "Start an entirely new session with no context at all, and let Claude rediscover the payment-processing flow from scratch."
+        },
+        {
+          "key": "C",
+          "text": "Keep working in the same session without intervention, since Claude Code has no mechanism for managing context length within a session."
+        },
+        {
+          "key": "D",
+          "text": "Manually delete the oldest third of the conversation's messages from the terminal scrollback to free up space."
+        }
+      ],
+      "correctAnswer": "A",
+      "explanationEn": "/compact is the documented mechanism for exactly this situation: condensing accumulated context while preserving the important findings and decisions, which directly addresses redundant re-reading and sluggishness without discarding the investigation's progress or forcing a restart. Starting an entirely new session with no context discards the two hours of already-completed mapping work, forcing costly re-discovery of the same payment-processing flow. Continuing without intervention ignores that context management tools exist specifically to counteract the degradation already being observed, and lets the sluggishness and redundant re-reading continue or worsen. Manually deleting terminal scrollback has no effect on the model's actual context window; scrollback is a local display artifact, not the conversation state the model reasons over.",
+      "explanationJa": "/compactは、まさにこのような状況のために用意された文書化された仕組みです。蓄積された文脈を、重要な発見事項や判断を保持しながら圧縮することで、調査の進捗を失ったり再開を強いられたりすることなく、重複した再読み込みや動作の重さに直接対処できます。まったく文脈のない新しいセッションを始めると、すでに完了した2時間分のマッピング作業が失われ、同じ決済処理フローのコストの高い再発見を強いられます。介入せずそのまま作業を続ける方法は、コンテキスト管理の仕組みがまさに今観測されている劣化に対抗するために存在することを無視しており、動作の重さや重複した再読み込みが続く、あるいは悪化するのを放置することになります。ターミナルのスクロールバックを手動で削除しても、モデルの実際のコンテキストウィンドウには影響しません。スクロールバックはローカルの表示上の産物であり、モデルが推論の根拠とする会話状態ではありません。"
+    },
+    {
+      "id": "pool-059",
+      "domain": 5,
+      "taskStatement": "5.5",
+      "context": "Medical-intake form digitization",
+      "stem": "A clinic's intake-form digitization pipeline reports 96% overall field-level extraction accuracy and is considering removing human review for high-confidence fields. A breakdown by field shows typed fields (name, date of birth) at 99.5% accuracy, while a handwritten 'current medications and dosages' field is only 79% accurate — the field most consequential to patient safety if misread. What should this breakdown change about the review plan?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Nothing — a 96% overall accuracy rate comfortably clears most industries' automation thresholds, so review can be removed uniformly."
+        },
+        {
+          "key": "B",
+          "text": "Calibrate confidence thresholds and review requirements per field, keeping mandatory human review for the handwritten medications/dosages field specifically, even as review is reduced or removed for reliably accurate typed fields."
+        },
+        {
+          "key": "C",
+          "text": "Apply a single, stricter confidence threshold uniformly across all fields, high enough that the medications field would rarely pass it."
+        },
+        {
+          "key": "D",
+          "text": "Discontinue accepting handwritten intake forms entirely, since the medications field cannot be reliably digitized by any means."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Field-level confidence calibration by document type and field is the documented response to exactly this pattern: aggregate accuracy can mask a specific field performing far worse, and the fix is to require review where a field genuinely underperforms — especially one this consequential to patient safety — while safely reducing review on fields that are reliably accurate. Treating the 96% aggregate as sufficient to remove review uniformly is the failure mode the guide warns about, letting a high overall number obscure a 79%-accurate, safety-critical field. A single stricter threshold applied uniformly to all fields either over-flags the already-reliable typed fields or, if tuned loosely enough to let those through, still under-flags the medications field — a single threshold can't correctly separate two fields with such different underlying error rates. Discontinuing handwritten forms entirely is a disproportionate response when field-level review, not wholesale rejection of an input type, directly addresses the actual accuracy gap.",
+      "explanationJa": "文書タイプとフィールドごとの確信度較正は、まさにこのパターンに対する文書化された対応です。全体の精度は特定のフィールドがはるかに悪い性能であることを覆い隠しうるため、修正策は、特に患者安全に重大な影響を及ぼしうる、実際に性能が劣るフィールドではレビューを必須とし、信頼性高く正確なフィールドではレビューを安全に削減することです。96%という全体の数値をレビュー一律削除に十分とみなすことは、ガイドが警告している失敗パターンそのものであり、高い全体数値が79%の精度しかない安全上重要なフィールドを覆い隠してしまいます。すべてのフィールドに一律のより厳格な単一しきい値を適用すると、すでに信頼性の高い活字フィールドを過剰にフラグ付けするか、それらを通過させるほど緩く調整すれば服薬フィールドを依然として見逃してしまうかのどちらかになります。単一のしきい値では、根本的なエラー率がこれほど異なる2つのフィールドを正しく区別できません。手書き問診票の受付を完全に廃止することは、フィールド単位のレビューという実際の精度差に直接対処する手段があるにもかかわらず、入力形式全体を一括で拒否する過剰な対応です。"
+    },
+    {
+      "id": "pool-060",
+      "domain": 5,
+      "taskStatement": "5.6",
+      "context": "Competitive-analysis synthesis report",
+      "stem": "A synthesis subagent combines findings from four separate sources — two analyst reports, a competitor's press release, and an internal sales call summary — into a single competitive-analysis paragraph stating that 'the competitor's enterprise tier is priced 15% below market average.' A reader later cannot determine which of the four sources this specific figure came from, or how recent it is, making it impossible to verify before it's used in a pricing decision. What should the synthesis process have done differently?",
+      "choices": [
+        {
+          "key": "A",
+          "text": "Omit specific figures like pricing percentages from synthesized output entirely, replacing them with qualitative language such as 'priced competitively.'"
+        },
+        {
+          "key": "B",
+          "text": "Preserve a claim-to-source mapping for each specific figure or assertion — which source it came from and its publication or collection date — so readers can trace and verify claims, rather than blending sourced figures into unattributed prose."
+        },
+        {
+          "key": "C",
+          "text": "Only include figures that all four sources independently confirm, discarding any figure mentioned by just one source."
+        },
+        {
+          "key": "D",
+          "text": "Cite all four sources generically at the end of the paragraph, without linking any specific figure to a specific source."
+        }
+      ],
+      "correctAnswer": "B",
+      "explanationEn": "Maintaining a claim-to-source mapping with dates is the documented practice for information provenance: it lets a reader trace any specific figure back to where it came from and when it was collected, which is exactly what's missing here and exactly what's needed before a figure is used in a consequential pricing decision. Omitting specific figures entirely discards genuinely useful, sourced information in favor of vague language that would be less useful for an actual pricing decision, overcorrecting rather than fixing attribution. Requiring independent confirmation from all four sources would discard a figure that's both accurate and useful simply because only one source happened to report that specific number, which isn't how provenance problems are meant to be solved. Citing all sources generically at the end still leaves the reader unable to determine which source the 15% figure specifically came from — attribution has to be tied to the individual claim, not the document as a whole.",
+      "explanationJa": "日付付きのクレーム・出典対応表を維持することが、情報の出典管理に関する文書化された実践です。これにより読者は特定の数値がどこから来て、いつ収集されたものかを追跡でき、これはまさにここで欠けているものであり、重要な価格決定に数値を使う前にまさに必要なものです。具体的な数値を完全に省く方法は、実際の価格決定にはあまり役立たない曖昧な表現と引き換えに、本物で出典のある有用な情報を捨ててしまい、帰属の問題を修正するのではなく過剰に対処しています。4つすべての情報源による独立した確認を要求する方法は、たまたま1つの情報源しか報告していないというだけで、正確で有用な数値を捨ててしまうことになり、出典管理の問題を解決する方法として適切ではありません。段落末尾で4つの情報源をまとめて一般的に引用する方法でも、読者は15%という数値が具体的にどの情報源から来たのかを特定できないままです。帰属は文書全体ではなく個々の主張に紐づける必要があります。"
+    }
+  ]
+}
