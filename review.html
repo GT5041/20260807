@@ -1,0 +1,83 @@
+<title>Review — CCAR-F Practice Exam</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="css/style.css" />
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="brand">CCAR-F Practice Exam<small>Unofficial daily mock exam</small></div>
+    <nav class="top-nav">
+      <a href="index.html">Home</a>
+      <a href="review.html">Review</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="content">
+    <p class="empty-state">Loading review…</p>
+  </div>
+</main>
+
+<footer class="site-footer">CCAR-F Practice Exam · Regenerated daily · Unofficial</footer>
+
+<script type="module">
+  import { loadTodaysExam, getState, summarize, DOMAIN_META, formatDateLabel } from "./js/app.js";
+
+  const content = document.getElementById("content");
+
+  loadTodaysExam().then((exam) => {
+    const state = getState(exam.date);
+    const s = summarize(exam, state);
+    const scorePct = s.answered ? Math.round((s.correct / s.answered) * 100) : 0;
+
+    const rows = exam.questions
+      .map((q, idx) => {
+        const given = state.answers[idx];
+        let status = "unanswered";
+        let statusLabel = "Unanswered";
+        if (given) {
+          status = given === q.correctAnswer ? "correct" : "incorrect";
+          statusLabel = given === q.correctAnswer ? "Correct" : "Incorrect";
+        }
+        return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${DOMAIN_META[q.domain].en}</td>
+            <td><span class="status-pill ${status}">${statusLabel}</span></td>
+            <td><a href="exam.html?n=${idx + 1}">Answer</a> &middot; <a href="explain.html?n=${idx + 1}">Explanation</a></td>
+          </tr>`;
+      })
+      .join("");
+
+    const byDomainRows = Object.entries(s.byDomain)
+      .map(
+        ([d, v]) => `
+        <tr>
+          <td>${DOMAIN_META[d].en}</td>
+          <td>${v.answered}/${v.total} answered</td>
+          <td>${v.correct}/${v.total} correct</td>
+        </tr>`
+      )
+      .join("");
+
+    content.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;">Review — ${formatDateLabel(exam.date)}</h2>
+        <div class="summary-grid">
+          <div class="summary-stat"><div class="num">${s.answered}/${s.total}</div><div class="label">Answered</div></div>
+          <div class="summary-stat"><div class="num">${s.correct}/${s.total}</div><div class="label">Correct</div></div>
+          <div class="summary-stat"><div class="num">${scorePct}%</div><div class="label">Accuracy so far</div></div>
+        </div>
+        <table class="review-table" style="margin-bottom:24px;">
+          <thead><tr><th>Domain</th><th>Answered</th><th>Correct</th></tr></thead>
+          <tbody>${byDomainRows}</tbody>
+        </table>
+        <table class="review-table">
+          <thead><tr><th>#</th><th>Domain</th><th>Status</th><th>Links</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  });
+</script>
