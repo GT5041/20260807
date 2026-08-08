@@ -1,9 +1,6 @@
 name: Generate daily CCAR-F questions
 
 on:
-  schedule:
-    # 15:00 UTC = 00:00 JST — fires once at the start of each JST calendar day.
-    - cron: "0 15 * * *"
   workflow_dispatch:
     inputs:
       force:
