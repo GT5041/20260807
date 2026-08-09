@@ -77,15 +77,108 @@ function resolveDate(manifest, today) {
   return dates[dates.length - 1];
 }
 
+const CUSTOM_EXAM_KEY = "ccarf:custom-exam";
+
+function loadStoredCustomExam() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_EXAM_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 let examCache = null;
 export async function loadTodaysExam() {
   if (examCache) return examCache;
+  const custom = loadStoredCustomExam();
+  if (custom) {
+    examCache = { requestedDate: custom.date, ...custom };
+    return examCache;
+  }
   const today = getTodayDateString();
   const manifest = await loadManifest();
   const date = resolveDate(manifest, today);
   const data = await fetchJSON(`data/questions/${date}.json`);
   examCache = { requestedDate: today, ...data };
   return examCache;
+}
+
+function shuffleArray(items) {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Pulls every question generated so far (across all daily files listed in
+// the manifest) so the swap feature has more than just today's 30 to draw
+// from once several days' worth of files have accumulated.
+async function loadQuestionPool() {
+  const manifest = await loadManifest();
+  const dates = [...manifest.dates].sort();
+  const files = await Promise.all(
+    dates.map((date) => fetchJSON(`data/questions/${date}.json`).catch(() => null))
+  );
+  const seen = new Set();
+  const pool = [];
+  files.forEach((file) => {
+    if (!file) return;
+    file.questions.forEach((q) => {
+      if (seen.has(q.id)) return;
+      seen.add(q.id);
+      pool.push(q);
+    });
+  });
+  return pool;
+}
+
+// Resets progress and picks a fresh set of 30 questions (six per domain,
+// where available) drawn at random from every question generated so far.
+export async function reshuffleExam(targetTotal = 30, perDomain = 6) {
+  const pool = await loadQuestionPool();
+
+  const selected = [];
+  for (let domain = 1; domain <= 5; domain++) {
+    const domainPool = shuffleArray(pool.filter((q) => q.domain === domain));
+    selected.push(...domainPool.slice(0, perDomain));
+  }
+
+  if (selected.length < targetTotal) {
+    const chosenIds = new Set(selected.map((q) => q.id));
+    const remaining = shuffleArray(pool.filter((q) => !chosenIds.has(q.id)));
+    selected.push(...remaining.slice(0, targetTotal - selected.length));
+  }
+
+  const questions = shuffleArray(selected).slice(0, targetTotal);
+
+  const exam = {
+    date: `custom-${Date.now()}`,
+    label: getTodayDateString(),
+    generatedBy: "shuffled",
+    custom: true,
+    questions,
+  };
+
+  const previous = loadStoredCustomExam();
+  if (previous) localStorage.removeItem(stateKey(previous.date));
+
+  localStorage.setItem(CUSTOM_EXAM_KEY, JSON.stringify(exam));
+  examCache = { requestedDate: exam.label, ...exam };
+  return examCache;
+}
+
+export function hasCustomExam() {
+  return Boolean(loadStoredCustomExam());
+}
+
+export function clearCustomExam() {
+  const previous = loadStoredCustomExam();
+  if (previous) localStorage.removeItem(stateKey(previous.date));
+  localStorage.removeItem(CUSTOM_EXAM_KEY);
+  examCache = null;
 }
 
 function stateKey(date) {

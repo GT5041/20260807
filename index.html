@@ -28,6 +28,13 @@
       <a class="btn" href="exam.html?n=1">Start Today's Exam</a>
       <a class="btn secondary" href="review.html">Go to Review</a>
     </p>
+    <p>
+      <button id="reshuffle-btn" class="btn secondary" type="button">
+        🔀 問題を入れ替える（回答をリセットして30問を選び直す）
+      </button>
+      <a id="revert-link" class="btn secondary" href="#" style="display:none;">公式のToday's Examに戻す</a>
+    </p>
+    <p id="reshuffle-note" class="exam-date" style="display:none;"></p>
   </div>
 
   <div class="card">
@@ -48,13 +55,55 @@
 <footer class="site-footer">CCAR-F Practice Exam · Regenerated daily · Unofficial</footer>
 
 <script type="module">
-  import { loadTodaysExam, formatDateLabel } from "./js/app.js";
+  import { loadTodaysExam, formatDateLabel, reshuffleExam, clearCustomExam } from "./js/app.js";
+
   const label = document.getElementById("date-label");
-  loadTodaysExam()
-    .then((exam) => {
+  const reshuffleBtn = document.getElementById("reshuffle-btn");
+  const revertLink = document.getElementById("revert-link");
+  const note = document.getElementById("reshuffle-note");
+
+  function renderExamLabel(exam) {
+    if (exam.custom) {
+      label.textContent = `入れ替え済みセット（${formatDateLabel(exam.label)}生成） · ${exam.questions.length} questions`;
+    } else {
       label.textContent = `Today's exam set: ${formatDateLabel(exam.date)} · ${exam.questions.length} questions`;
-    })
+    }
+    revertLink.style.display = exam.custom ? "" : "none";
+  }
+
+  loadTodaysExam()
+    .then(renderExamLabel)
     .catch(() => {
       label.textContent = "Could not load today's exam data yet — check back soon.";
     });
+
+  reshuffleBtn.addEventListener("click", async () => {
+    const proceed = window.confirm(
+      "現在の回答済みの状態はリセットされ、蓄積された問題からランダムに30問を選び直します。よろしいですか？"
+    );
+    if (!proceed) return;
+
+    reshuffleBtn.disabled = true;
+    reshuffleBtn.textContent = "入れ替え中…";
+    try {
+      const exam = await reshuffleExam();
+      renderExamLabel(exam);
+      note.style.display = "";
+      note.textContent = `新しい30問を選び直しました。「Start Today's Exam」から解答できます。`;
+    } catch (err) {
+      note.style.display = "";
+      note.textContent = "問題の入れ替えに失敗しました。しばらくしてから再度お試しください。";
+    } finally {
+      reshuffleBtn.disabled = false;
+      reshuffleBtn.textContent = "🔀 問題を入れ替える（回答をリセットして30問を選び直す）";
+    }
+  });
+
+  revertLink.addEventListener("click", (evt) => {
+    evt.preventDefault();
+    clearCustomExam();
+    note.style.display = "";
+    note.textContent = "公式のToday's Examに戻しました。";
+    loadTodaysExam().then(renderExamLabel);
+  });
 </script>
